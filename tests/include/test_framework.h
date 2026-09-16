@@ -64,6 +64,7 @@ inline int RunAll() {
 	for (const TestCase& test : Registry()) {
 		const int failuresBefore = FailureCount();
 		std::printf("[ RUN  ] %s\n", test.name);
+		std::fflush(stdout); // keep the current test visible if an assert aborts
 		try {
 			test.fn();
 		} catch (const std::exception& exception) {

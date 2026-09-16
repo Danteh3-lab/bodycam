@@ -56,6 +56,20 @@ void ClampOverlayConfig(OverlayConfig& config) {
 	config.players.headDotSize = ClampFloat(config.players.headDotSize, 1.0f, 15.0f, 4.0f);
 	config.players.maxDistance = ClampFloat(config.players.maxDistance, 10.0f, 1000.0f, 300.0f);
 
+	// Visibility modes are mutually exclusive: visible-only already hides what
+	// dim-occluded would grey out, so visible-only wins.
+	if (config.players.visibleOnly && config.players.dimOccluded) {
+		config.players.dimOccluded = false;
+	}
+
+	config.aim.fov = ClampFloat(config.aim.fov, 10.0f, 600.0f, 150.0f);
+	config.aim.smooth = ClampFloat(config.aim.smooth, 1.0f, 20.0f, 5.0f);
+	config.aim.method = ClampInt(config.aim.method, 0, 2, 1);
+	config.aim.boneMode = ClampInt(config.aim.boneMode, 0, 1, 0);
+	config.aim.maxStep = ClampFloat(config.aim.maxStep, 1.0f, 90.0f, 25.0f);
+	config.aim.softFov = ClampFloat(config.aim.softFov, 10.0f, 600.0f, 120.0f);
+	config.aim.softSmooth = ClampFloat(config.aim.softSmooth, 1.0f, 10.0f, 1.0f);
+
 	config.visuals.outlineExtra = ClampFloat(config.visuals.outlineExtra, 0.5f, 5.0f, 2.0f);
 	config.visuals.lineThickness = ClampFloat(config.visuals.lineThickness, 0.5f, 5.0f, 1.0f);
 	config.visuals.textScale = ClampFloat(config.visuals.textScale, 0.6f, 2.5f, 1.0f);
@@ -64,7 +78,7 @@ void ClampOverlayConfig(OverlayConfig& config) {
 	config.projection.fovScale = ClampFloat(config.projection.fovScale, 0.5f, 2.5f, 1.150f);
 	config.projection.fallbackFov = ClampFloat(config.projection.fallbackFov, 20.0f, 170.0f, 90.0f);
 
-	config.menu.section = ClampInt(config.menu.section, 0, 4, 0);
+	config.menu.section = ClampInt(config.menu.section, 0, 5, 0);
 	if (!std::isfinite(config.menu.x) || !std::isfinite(config.menu.y)) {
 		config.menu.x = -1.0f;
 		config.menu.y = -1.0f;
@@ -82,6 +96,7 @@ std::string SerializeOverlayConfig(const OverlayConfig& config) {
 	root["schema_version"] = kConfigSchemaVersion;
 	root["esp_enabled"] = config.espEnabled;
 	root["reduced_motion"] = config.reducedMotion;
+	root["unsafe_engine_calls"] = config.unsafeEngineCalls;
 
 	json& players = root["players"];
 	players["box_mode"] = config.players.boxMode;
@@ -98,7 +113,25 @@ std::string SerializeOverlayConfig(const OverlayConfig& config) {
 	players["show_team"] = config.players.showTeam;
 	players["show_drones"] = config.players.showDrones;
 	players["hide_dead"] = config.players.hideDead;
+	players["visible_only"] = config.players.visibleOnly;
+	players["dim_occluded"] = config.players.dimOccluded;
 	players["max_distance"] = config.players.maxDistance;
+
+	json& aim = root["aim"];
+	aim["enabled"] = config.aim.enabled;
+	aim["ignore_team"] = config.aim.ignoreTeam;
+	aim["visible_only"] = config.aim.visibleOnly;
+	aim["fov"] = config.aim.fov;
+	aim["smooth"] = config.aim.smooth;
+	aim["method"] = config.aim.method;
+	aim["bone_mode"] = config.aim.boneMode;
+	aim["max_step"] = config.aim.maxStep;
+	aim["draw_fov"] = config.aim.drawFov;
+	aim["draw_target"] = config.aim.drawTarget;
+	aim["soft_aim"] = config.aim.softAim;
+	aim["soft_fov"] = config.aim.softFov;
+	aim["soft_smooth"] = config.aim.softSmooth;
+	aim["soft_head_only"] = config.aim.softHeadOnly;
 
 	json& visuals = root["visuals"];
 	visuals["outline"] = config.visuals.outline;
@@ -148,6 +181,7 @@ OverlayConfig DeserializeOverlayConfig(const std::string& text, ConfigLoadReport
 		config.schemaVersion = kConfigSchemaVersion;
 		config.espEnabled = root.value("esp_enabled", config.espEnabled);
 		config.reducedMotion = root.value("reduced_motion", config.reducedMotion);
+		config.unsafeEngineCalls = root.value("unsafe_engine_calls", config.unsafeEngineCalls);
 
 		if (root.contains("players") && root["players"].is_object()) {
 			const json& players = root["players"];
@@ -165,7 +199,27 @@ OverlayConfig DeserializeOverlayConfig(const std::string& text, ConfigLoadReport
 			config.players.showTeam = players.value("show_team", config.players.showTeam);
 			config.players.showDrones = players.value("show_drones", config.players.showDrones);
 			config.players.hideDead = players.value("hide_dead", config.players.hideDead);
+			config.players.visibleOnly = players.value("visible_only", config.players.visibleOnly);
+			config.players.dimOccluded = players.value("dim_occluded", config.players.dimOccluded);
 			config.players.maxDistance = players.value("max_distance", config.players.maxDistance);
+		}
+
+		if (root.contains("aim") && root["aim"].is_object()) {
+			const json& aim = root["aim"];
+			config.aim.enabled = aim.value("enabled", config.aim.enabled);
+			config.aim.ignoreTeam = aim.value("ignore_team", config.aim.ignoreTeam);
+			config.aim.visibleOnly = aim.value("visible_only", config.aim.visibleOnly);
+			config.aim.fov = aim.value("fov", config.aim.fov);
+			config.aim.smooth = aim.value("smooth", config.aim.smooth);
+			config.aim.method = aim.value("method", config.aim.method);
+			config.aim.boneMode = aim.value("bone_mode", config.aim.boneMode);
+			config.aim.maxStep = aim.value("max_step", config.aim.maxStep);
+			config.aim.drawFov = aim.value("draw_fov", config.aim.drawFov);
+			config.aim.drawTarget = aim.value("draw_target", config.aim.drawTarget);
+			config.aim.softAim = aim.value("soft_aim", config.aim.softAim);
+			config.aim.softFov = aim.value("soft_fov", config.aim.softFov);
+			config.aim.softSmooth = aim.value("soft_smooth", config.aim.softSmooth);
+			config.aim.softHeadOnly = aim.value("soft_head_only", config.aim.softHeadOnly);
 		}
 
 		if (root.contains("visuals") && root["visuals"].is_object()) {

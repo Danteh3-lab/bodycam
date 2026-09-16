@@ -3,6 +3,8 @@
 // Runs on the overlay thread; never touches game memory.
 // ============================================================================
 #pragma once
+#include "AimController.hpp"
+
 #include "nova/BoxMath.hpp"
 #include "nova/Config.hpp"
 #include "nova/Diagnostics.hpp"
@@ -19,6 +21,10 @@ class EspRenderer {
 public:
 	void Draw(const nova::GameSnapshot& snapshot, const nova::OverlayConfig& config,
 	          float screenWidth, float screenHeight, nova::BoneCounters& boneCounters);
+
+	// FOV circles and the target line. Uses only config + worker telemetry.
+	void DrawAimOverlay(const nova::OverlayConfig& config, const AimTelemetry& aim,
+	                    float screenWidth, float screenHeight);
 
 private:
 	struct ProjectedPose {

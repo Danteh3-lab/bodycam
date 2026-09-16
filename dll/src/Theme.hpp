@@ -29,6 +29,7 @@ inline constexpr ImU32 kDanger     = IM_COL32(255, 76, 76, 255);
 inline constexpr ImU32 kEspEnemy   = IM_COL32(255, 62, 62, 255);   // red
 inline constexpr ImU32 kEspTeam    = IM_COL32(82, 150, 255, 255);  // blue
 inline constexpr ImU32 kEspDrone   = IM_COL32(0, 220, 255, 255);   // cyan
+inline constexpr ImU32 kEspOccluded = IM_COL32(158, 158, 158, 255); // dimmed occluded
 inline constexpr ImU32 kEspInfo    = IM_COL32(220, 220, 220, 255); // neutral text
 inline constexpr ImU32 kEspOutline = IM_COL32(0, 0, 0, 255);
 

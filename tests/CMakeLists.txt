@@ -6,6 +6,7 @@ add_executable(nova_tests
   src/test_projection.cpp
   src/test_resolver.cpp
   src/test_collector.cpp
+  src/test_aim.cpp
   src/test_config.cpp
   src/test_contract.cpp
 )

@@ -98,7 +98,7 @@ bool SettingsStore::Flush() {
 		dirty_ = false;
 		saveFailed_ = false;
 		lastSaveClock_ = ClockText();
-		nova::LogInfo("settings flushed on unload");
+		nova::LogInfo("settings flushed on stop");
 		return true;
 	}
 	lastError_ = error;

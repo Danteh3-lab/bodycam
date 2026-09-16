@@ -14,7 +14,9 @@
 namespace nova_host {
 namespace {
 
-const char* const kSections[] = { "Overview", "Players", "Visuals", "Overlay", "Diagnostics" };
+const char* const kSections[] = {
+	"Overview", "Players", "Aim", "Visuals", "Overlay", "Diagnostics"
+};
 constexpr int kSectionCount = static_cast<int>(sizeof(kSections) / sizeof(kSections[0]));
 
 void LowerCopy(const char* source, char* out, size_t outSize) {
@@ -211,14 +213,15 @@ void NovaUi::DrawOverview(const nova::RuntimeDiagnostics& diagnostics,
 
 	UiGroup("Keys");
 	ImGui::Text("INSERT  toggle this menu");
-	ImGui::Text("DELETE  unload NOVA cleanly");
+	ImGui::Text("DELETE  stop NOVA (restart game to reload)");
 
 	UiGroup("Quick actions");
 	ImGui::TextDisabled("Master toggle: %s", config.espEnabled ? "ON" : "OFF");
 	ImGui::TextDisabled("Configure features in Players and Visuals.");
 }
 
-void NovaUi::DrawPlayers(nova::OverlayConfig& config, bool* changed) {
+void NovaUi::DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vischeck,
+                         bool* changed) {
 	nova::PlayerFeatureConfig& players = config.players;
 
 	UiGroup("Box");
@@ -277,7 +280,154 @@ void NovaUi::DrawPlayers(nova::OverlayConfig& config, bool* changed) {
 	             "Skips players whose health is zero. Players with unreadable health stay visible.")) {
 		*changed = true;
 	}
+	if (UiToggle("Visible only", &players.visibleOnly,
+	             "Line-of-sight check from your camera; occluded players are skipped.\n"
+	             "The engine's own LineOfSightTo is called through ProcessEvent. If it\n"
+	             "cannot be resolved the filter stays inactive instead of hiding everyone.")) {
+		if (players.visibleOnly) players.dimOccluded = false;
+		*changed = true;
+	}
+	if (UiToggle("Dim occluded", &players.dimOccluded,
+	             "Draws occluded players in grey instead of hiding them.")) {
+		if (players.dimOccluded) players.visibleOnly = false;
+		*changed = true;
+	}
+	if ((players.visibleOnly || players.dimOccluded) &&
+	    (!vischeck.ready || !vischeck.enginePathAvailable)) {
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Vischeck unavailable - players are not filtered.");
+	}
 	if (UiSlider("Max distance", &players.maxDistance, 10.0f, 1000.0f, "%.0f m")) *changed = true;
+}
+
+void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
+                     const EngineCalls::Status& engineCalls, const VisCheck::Status& vischeck,
+                     bool* changed) {
+	nova::AimConfig& settings = config.aim;
+
+	UiGroup("Aim assist");
+	if (UiToggle("Enable aimbot", &settings.enabled,
+	             "Hold the right mouse button to engage.")) {
+		*changed = true;
+	}
+	ImGui::BeginDisabled(!settings.enabled);
+	if (UiCombo("Target", &settings.boneMode, "Head\0Body\0",
+	            "Head uses the bone identified from the model's reference pose.\n"
+	            "Body aims at mid-height.")) {
+		*changed = true;
+	}
+	if (UiSlider("Aim FOV", &settings.fov, 10.0f, 600.0f, "%.0f px",
+	             "Radius around the crosshair where targets are considered.")) {
+		*changed = true;
+	}
+	if (UiSlider("Smoothing", &settings.smooth, 1.0f, 20.0f, "%.1f",
+	             "Higher is slower. 1 closes the whole gap in one tick.")) {
+		*changed = true;
+	}
+	ImGui::EndDisabled();
+
+	const bool anyAim = settings.enabled || settings.softAim;
+
+	UiGroup("How the view is moved");
+	ImGui::BeginDisabled(!anyAim);
+	if (UiCombo("Method", &settings.method,
+	            "Game function (unsafe, opt-in)\0Rotation input (direct)\0Control rotation (legacy)\0",
+	            "Rotation input: writes RotationInput directly on the game thread. The\n"
+	            "default and recommended method. Works whenever the game-thread path\n"
+	            "verifies.\n\n"
+	            "Control rotation: the old method. The game recomputes that value every\n"
+	            "tick, so this one fights the engine.\n\n"
+	            "Game function: calls the engine's own AddYawInput/AddPitchInput. Requires\n"
+	            "the unsafe engine-call opt-in and the verified game-thread path; there is\n"
+	            "no automatic fallback.")) {
+		*changed = true;
+	}
+	if (UiSlider("Max step", &settings.maxStep, 1.0f, 90.0f, "%.0f deg",
+	             "Hard cap on how many degrees the view may move in one tick.\n"
+	             "A bad reading can never produce a wild spin.")) {
+		*changed = true;
+	}
+	if (UiToggle("Ignore teammates", &settings.ignoreTeam,
+	             "Applies to both the aimbot and soft aim. Teams come from\n"
+	             "PlayerState::TeamId, the same source the ESP uses.")) {
+		*changed = true;
+	}
+	if (UiToggle("Visible only", &settings.visibleOnly,
+	             "Only locks onto targets with an unobstructed line of sight from the\n"
+	             "camera, using the same check as the ESP filter.")) {
+		*changed = true;
+	}
+	if (UiToggle("Draw FOV circle", &settings.drawFov,
+	             "White circle = aimbot FOV. Yellow circle = soft aim FOV.")) {
+		*changed = true;
+	}
+	if (UiToggle("Draw target line", &settings.drawTarget,
+	             "Line from the crosshair to the bone being tracked.")) {
+		*changed = true;
+	}
+	ImGui::EndDisabled();
+
+	UiGroup("Soft aim");
+	if (UiToggle("Soft aim", &settings.softAim,
+	             "Corrects continuously while the fire button is held, using the tighter\n"
+	             "FOV and the head bone. Works independently of the aimbot above.")) {
+		*changed = true;
+	}
+	ImGui::BeginDisabled(!settings.softAim);
+	if (UiSlider("Soft aim FOV", &settings.softFov, 10.0f, 600.0f, "%.0f px",
+	             "Only corrects if the head is inside this radius from the crosshair.")) {
+		*changed = true;
+	}
+	if (UiSlider("Soft aim smoothing", &settings.softSmooth, 1.0f, 10.0f, "%.1f",
+	             "1 closes the whole gap on the first shot; higher values move less\n"
+	             "each shot but need a few shots to land.")) {
+		*changed = true;
+	}
+	if (UiToggle("Soft aim head only", &settings.softHeadOnly,
+	             "Always aim at the head bone, ignoring the Target setting above.")) {
+		*changed = true;
+	}
+	ImGui::EndDisabled();
+
+	UiGroup("Engine function");
+	if (UiToggle("Allow engine calls (unsafe)", &config.unsafeEngineCalls,
+	             "Off by default. When enabled, NOVA calls the game's own input functions\n"
+	             "and ProcessEvent for the vischeck on the game thread. Engine calls can\n"
+	             "re-enter engine code at an unsafe phase; enable only if you accept that\n"
+	             "risk.")) {
+		*changed = true;
+	}
+	if (config.unsafeEngineCalls) {
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Unsafe engine calls ON - engine re-entry risk accepted.");
+	} else {
+		ImGui::TextDisabled("Engine calls disabled. Direct rotation methods still work.");
+	}
+	ImGui::Text("Input functions: %s",
+	            engineCalls.functionsResolved ? "verified" : "unresolved");
+	ImGui::Text("Game-thread path: %s",
+	            engineCalls.gameThreadAvailable ? "verified" : engineCalls.enginePath.c_str());
+	ImGui::TextWrapped("%s", engineCalls.message.c_str());
+	if (engineCalls.functionsResolved) {
+		ImGui::Text("Measured scale   yaw %.3f %s   pitch %.3f %s",
+		            engineCalls.yawScale, engineCalls.yawCalibrated ? "" : "(default)",
+		            engineCalls.pitchScale, engineCalls.pitchCalibrated ? "" : "(default)");
+	}
+	if (anyAim && settings.method == 0 && !engineCalls.engineMethodAvailable) {
+		const char* reason = !engineCalls.engineCallsEnabled ? "engine calls disabled"
+		                   : !engineCalls.gameThreadAvailable  ? "game-thread path unavailable"
+		                                                       : "input functions unresolved";
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Engine method unavailable (%s) - use the direct rotation method.",
+		                   reason);
+	}
+	if (anyAim && settings.visibleOnly &&
+	    (!vischeck.ready || !vischeck.enginePathAvailable)) {
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Vischeck unavailable - the visible-only filter is inactive.");
+	}
+	ImGui::Dummy(ImVec2(0.0f, 4.0f));
+	ImGui::TextWrapped("Status: %s", aim.status.c_str());
 }
 
 void NovaUi::DrawVisuals(nova::OverlayConfig& config, bool* changed) {
@@ -350,7 +500,7 @@ void NovaUi::DrawOverlaySection(nova::OverlayConfig& config,
                                 const nova::RuntimeDiagnostics& diagnostics, bool* changed) {
 	UiGroup("Overlay");
 	ImGui::Text("Toggle menu: INSERT");
-	ImGui::Text("Unload:      DELETE");
+	ImGui::Text("Stop:        DELETE (restart game to reload)");
 	ImGui::Text("Overlay FPS: %.0f", diagnostics.overlayFps);
 	ImGui::Text("Snapshot age: %.0f ms", static_cast<double>(diagnostics.snapshotAgeMs));
 	ImGui::TextWrapped("The ESP draws on the background draw list, so this menu always stays "
@@ -368,7 +518,9 @@ void NovaUi::DrawOverlaySection(nova::OverlayConfig& config,
 
 void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
                              const nova::ResolverDiagnostics& resolver,
-                             const nova::CollectionDiagnostics& collection) {
+                             const nova::CollectionDiagnostics& collection,
+                             const AimTelemetry& aim,
+                             const VisCheck::Status& vischeck) {
 	UiGroup("Resolver");
 	ImGui::Text("State: %s", nova::RuntimeStateName(diagnostics.state));
 	ImGui::Text("Chain: %s", nova::ResolveStageName(diagnostics.stage));
@@ -392,6 +544,8 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 	            collection.entities.tooFar);
 	ImGui::Text("drones %d   drone-filtered %d", collection.entities.drones,
 	            collection.entities.droneFiltered);
+	ImGui::Text("occluded %d   off-screen %d", collection.entities.occluded,
+	            collection.entities.offScreen);
 
 	UiGroup("Skeletons");
 	ImGui::Text("Cache entries: %d", diagnostics.skeletonCacheSize);
@@ -407,6 +561,26 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 	            collection.bones.noHierarchy, collection.bones.badMesh);
 	ImGui::Text("Skeletons drawn: %d", collection.bones.skeletonsDrawn);
 
+	UiGroup("Vischeck");
+	ImGui::TextWrapped("%s", vischeck.message.c_str());
+	ImGui::Text("queries %d   visible %d   hidden %d   cached %d",
+	            vischeck.calls, vischeck.visible, vischeck.hidden,
+	            static_cast<int>(vischeck.cacheSize));
+	ImGui::Text("attempts %d / %d", vischeck.tries, vischeck.maxTries);
+	ImGui::TextWrapped("A line-of-sight trace is run from your camera to each tracked player "
+	                   "through the engine's own LineOfSightTo function. Results are cached for "
+	                   "a few frames. Unresolved or faulting checks count as visible, so the ESP "
+	                   "never silently hides players.");
+
+	UiGroup("Aim");
+	ImGui::TextWrapped("%s", aim.status.c_str());
+	if (aim.hasTarget) {
+		ImGui::Text("target: yes   crosshair %.0f px   dYaw %.2f   dPitch %.2f",
+		            aim.crosshairPixels, aim.stepYaw, aim.stepPitch);
+	} else {
+		ImGui::Text("target: no");
+	}
+
 	UiGroup("Logs");
 	ImGui::TextWrapped("Lifecycle, timings and failures are written to the NOVA log directory. "
 	                   "No player names or gameplay data are recorded.");
@@ -415,6 +589,8 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnostics,
                   const nova::ResolverDiagnostics& resolver,
                   const nova::CollectionDiagnostics& collection,
+                  const AimTelemetry& aim, const EngineCalls::Status& engineCalls,
+                  const VisCheck::Status& vischeck,
                   const nova::OverlayConfig& liveConfig, UiState& state, bool animationsEnabled) {
 	nova::OverlayConfig config = liveConfig;
 	bool changed = false;
@@ -471,18 +647,20 @@ void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnost
 	if (state.section == 0) {
 		DrawOverview(diagnostics, config);
 	} else if (state.section == 1) {
-		DrawPlayers(config, &changed);
+		DrawPlayers(config, vischeck, &changed);
 	} else if (state.section == 2) {
-		DrawVisuals(config, &changed);
+		DrawAim(config, aim, engineCalls, vischeck, &changed);
 	} else if (state.section == 3) {
+		DrawVisuals(config, &changed);
+	} else if (state.section == 4) {
 		DrawOverlaySection(config, diagnostics, &changed);
 	} else {
-		DrawDiagnostics(diagnostics, resolver, collection);
+		DrawDiagnostics(diagnostics, resolver, collection, aim, vischeck);
 	}
 	state.searchShown = shownThisFrame_;
 
 	if (state.search[0] != '\0' && shownThisFrame_ == 0 && state.section != 0 &&
-	    state.section != 4) {
+	    state.section != 5) {
 		ImGui::TextDisabled("No options match \"%s\".", state.search);
 	}
 

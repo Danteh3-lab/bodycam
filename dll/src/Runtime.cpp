@@ -16,6 +16,7 @@ namespace {
 
 constexpr uint64_t kWorkerIntervalMs = 16;   // ~60 Hz sampling
 constexpr int      kRecoverAfterTicks = 30;  // ~0.5 s before declaring recovery
+constexpr size_t   kEngineScanStepBytes = 1024 * 1024; // bounded per-tick code scan
 
 struct WindowSearch {
 	DWORD   processId = 0;
@@ -75,6 +76,12 @@ void Runtime::Shutdown() noexcept {
 		// Joining cannot fail in practice; never let teardown escape.
 	}
 	try {
+		// Any queued game-thread task becomes a no-op; the module is pinned, so
+		// a late APC cannot call into unmapped code.
+		if (gameThread_ != nullptr) gameThread_->CancelPending();
+	} catch (...) {
+	}
+	try {
 		settings_.Flush();
 	} catch (...) {
 	}
@@ -83,7 +90,7 @@ void Runtime::Shutdown() noexcept {
 	} catch (...) {
 	}
 	try {
-		nova::LogInfo("NOVA unloaded");
+		nova::LogInfo("NOVA stopped (module pinned; restart the game to inject again)");
 		nova::Logger::Instance().Close();
 	} catch (...) {
 	}
@@ -108,6 +115,8 @@ nova::CaptureSettings Runtime::ToCaptureSettings(const nova::OverlayConfig& conf
 	capture.showTeam = config.players.showTeam;
 	capture.showDrones = config.players.showDrones;
 	capture.hideDead = config.players.hideDead;
+	capture.visibility = config.players.visibleOnly || config.players.dimOccluded ||
+	                     config.aim.visibleOnly;
 	capture.maxDistanceMeters = static_cast<double>(config.players.maxDistance);
 	return capture;
 }
@@ -134,11 +143,12 @@ void Runtime::RequestStop() {
 }
 
 int Runtime::Run(HMODULE module) {
-	(void)module; // the bootstrap thread owns unloading; Run only needs the lifetime
+	(void)module; // the bootstrap thread owns the runtime lifetime; Run only needs it
 
 	// RAII teardown: every exit path — normal return, early return, or an
-	// exception escaping MainLoop — stops and joins the worker, flushes
-	// settings and destroys the overlay before the DLL can be unloaded.
+	// exception escaping MainLoop — stops and joins the worker, cancels queued
+	// game-thread tasks, flushes settings and destroys the overlay before
+	// control leaves the runtime.
 	struct ShutdownGuard {
 		~ShutdownGuard() { Runtime::Instance().Shutdown(); }
 	} shutdownGuard;
@@ -154,7 +164,7 @@ int Runtime::Run(HMODULE module) {
 
 	const std::wstring moduleName = platform::ToWide(Offsets::kGameModule);
 	if (!memory_.Attach(moduleName.c_str())) {
-		nova::LogError("game module not mapped; unloading");
+		nova::LogError("game module not mapped; stopping");
 		return 1;
 	}
 	{
@@ -177,7 +187,11 @@ int Runtime::Run(HMODULE module) {
 
 	names_ = std::make_unique<nova::NamePool>(memory_);
 	resolver_ = std::make_unique<nova::WorldResolver>(memory_, *names_);
-	collector_ = std::make_unique<nova::SnapshotCollector>(memory_, *names_);
+	gameThread_ = std::make_unique<GameThreadExecutor>();
+	engineCalls_ = std::make_unique<EngineCalls>(memory_, *gameThread_);
+	vischeck_ = std::make_unique<VisCheck>(memory_, *names_, *gameThread_);
+	collector_ = std::make_unique<nova::SnapshotCollector>(memory_, *names_, vischeck_.get());
+	aim_ = std::make_unique<AimController>(memory_, *engineCalls_);
 
 	if (identity_.knownMismatch()) {
 		resolver_->MarkOffsetsInvalid();
@@ -208,10 +222,14 @@ int Runtime::Run(HMODULE module) {
 		targetWindow_ = FindTargetWindow(processId);
 	}
 	if (targetWindow_ == nullptr) {
-		nova::LogError("no target window found within 15 s; unloading");
+		nova::LogError("no target window found within 15 s; stopping");
 		return 2;
 	}
 	nova::LogInfo("target window found");
+
+	// Prove the game-thread APC path before any engine interaction is offered.
+	gameThread_->Initialize(targetWindow_);
+	nova::LogInfo("game-thread path: " + gameThread_->message());
 
 	overlay_ = std::make_unique<OverlayWindow>();
 	std::wstring error;
@@ -242,11 +260,11 @@ void Runtime::MainLoop() {
 			break;
 		}
 		if (!IsWindow(targetWindow_)) {
-			nova::LogInfo("target window destroyed; unloading");
+			nova::LogInfo("target window destroyed; stopping");
 			break;
 		}
 		if (platform::ConsumeKeyPress(Offsets::Keys::Unload)) {
-			nova::LogInfo("unload key pressed");
+			nova::LogInfo("stop key pressed; NOVA stops (restart the game to inject again)");
 			break;
 		}
 		if (platform::ConsumeKeyPress(Offsets::Keys::MenuToggle)) {
@@ -263,7 +281,7 @@ void Runtime::MainLoop() {
 		settings_.Tick(platform::MonotonicMilliseconds());
 
 		if (overlay_->RendererFailed()) {
-			nova::LogError("renderer failure; unloading");
+			nova::LogError("renderer failure; stopping");
 			break;
 		}
 		if (!overlay_->SyncToTarget()) {
@@ -286,15 +304,19 @@ void Runtime::MainLoop() {
 			Sleep(16);
 			continue;
 		}
+		viewportWidth_ = width;
+		viewportHeight_ = height;
 
 		const nova::OverlayConfig config = settings_.Snapshot();
 		if (config.espEnabled && frame.snapshot != nullptr && frame.snapshot->valid &&
 		    frame.diagnostics.state == nova::RuntimeState::Ready) {
 			esp_.Draw(*frame.snapshot, config, width, height, renderBones_);
 		}
+		esp_.DrawAimOverlay(config, frame.aim, width, height);
 
 		if (overlay_->MenuVisible()) {
 			ui_.Draw(settings_, frame.diagnostics, frame.resolver, frame.collection,
+			         frame.aim, frame.engineCalls, frame.vischeck,
 			         config, uiState_, platform::AnimationsEnabled());
 		}
 
@@ -304,7 +326,7 @@ void Runtime::MainLoop() {
 
 void Runtime::WorkerLoop() {
 	// An exception must never escape a thread function (std::terminate), and
-	// the overlay thread must not unload the DLL while this loop is alive.
+	// the overlay thread must not tear the runtime down while this loop is alive.
 	try {
 		WorkerLoopImpl();
 	} catch (const std::exception& exception) {
@@ -336,10 +358,28 @@ void Runtime::WorkerLoopImpl() {
 			if (!resolved || !names_->ready()) {
 				(void)resolver_->PumpFallback(startMs);
 			}
+			// Quarantined engine interaction: engine function calls and the
+			// ProcessEvent vischeck run only after the owner opts in and the
+			// game-thread path is verified. Direct rotation writes need only
+			// the game-thread path.
+			engineCalls_->SetEngineCallsEnabled(config.unsafeEngineCalls);
+			vischeck_->SetEngineCallsEnabled(config.unsafeEngineCalls);
+			engineCalls_->Resolve(kEngineScanStepBytes);
+			vischeck_->Tick(resolver_->context().playerController);
 		}
 
 		nova::GameSnapshotPtr snapshot = collector_->Capture(
 			resolver_->context(), resolver_->stage(), ToCaptureSettings(config), ++sequence, startMs);
+
+		if (snapshot->valid && snapshot->camera.valid && resolver_->context().valid &&
+		    !resolver_->offsetsInvalid()) {
+			nova::ProjectionSettings projection;
+			projection.axisOverride = config.projection.axisOverride;
+			projection.fovScale = static_cast<double>(config.projection.fovScale);
+			projection.fallbackFov = config.projection.fallbackFov;
+			aim_->Tick(resolver_->context(), *snapshot, config.aim, projection,
+			           viewportWidth_.load(), viewportHeight_.load());
+		}
 
 		nova::RuntimeState state = EvaluateState(resolver_->context(), *snapshot);
 		if (resolver_->offsetsInvalid()) state = nova::RuntimeState::OffsetsInvalid;
@@ -398,6 +438,7 @@ void Runtime::WorkerLoopImpl() {
 				recovering_ = true;
 				collector_->ClearCaches();
 				resolver_->OnMapTransition();
+				vischeck_->OnWorldReset();
 				nova::LogInfo("world lost; clearing caches for map transition");
 			}
 		}
@@ -442,6 +483,10 @@ void Runtime::WorkerLoopImpl() {
 		frame.diagnostics = diagnostics;
 		frame.resolver = resolverDiagnostics;
 		frame.collection = collector_->diagnostics();
+		engineCalls_->RefreshStatus();
+		frame.aim = aim_->telemetry();
+		frame.engineCalls = engineCalls_->status();
+		frame.vischeck = vischeck_->status();
 		PublishFrame(std::move(frame));
 
 		const uint64_t elapsed = platform::MonotonicMilliseconds() - startMs;

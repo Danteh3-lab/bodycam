@@ -3,7 +3,8 @@
 //
 // DllMain stays minimal: thread notifications are disabled (we do not need
 // them) and a single bootstrap thread starts all initialization after the
-// loader lock has been released. Deleting the DLL unloads NOVA cleanly; the
+// loader lock has been released. DELETE stops NOVA; once the game-thread path
+// is opened the module is pinned and stays mapped until the game exits. The
 // game process is never terminated.
 // ============================================================================
 #include "Runtime.hpp"
@@ -21,9 +22,10 @@ DWORD WINAPI BootstrapThread(LPVOID parameter) {
 	auto* module = static_cast<HMODULE>(parameter);
 
 	// Nothing may escape this thread: an unhandled exception would terminate
-	// the game process. Teardown (stop/join the worker, flush settings, destroy
-	// the overlay) must complete before the DLL is unloaded; Shutdown() is
-	// idempotent and non-throwing so it is safe on every path.
+	// the game process. Teardown (stop/join the worker, cancel queued
+	// game-thread tasks, flush settings, destroy the overlay) must complete
+	// before control leaves the runtime; Shutdown() is idempotent and
+	// non-throwing so it is safe on every path.
 	int exitCode = 1;
 	try {
 		exitCode = nova_host::Runtime::Instance().Run(module);
@@ -41,6 +43,9 @@ DWORD WINAPI BootstrapThread(LPVOID parameter) {
 		}
 	}
 
+	// The module is pinned once the game-thread path is opened, so a pending
+	// APC can never call into unmapped code. Shutdown() has joined the worker
+	// and cancelled queued tasks before control reaches this point.
 	FreeLibraryAndExitThread(module, static_cast<DWORD>(exitCode));
 }
 

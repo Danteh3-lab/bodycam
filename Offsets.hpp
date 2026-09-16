@@ -7,13 +7,13 @@
 //          values marked [DUMP] come from an SDK dump and are validated at
 //          runtime before their pointer chain is trusted.
 //
-// Read-only contract:
-//   * The runtime (nova_core / NOVA.dll) consumes ONLY read offsets. It never
-//     writes game memory, patches code, or calls engine functions.
-//   * Aim/input constants are retained below under Offsets::Reference as
-//     documented reference data. They are intentionally NOT consumable by
-//     runtime code; the static read-only contract test rejects any reference
-//     to them from core/ and dll/ sources.
+// Interaction contract:
+//   * nova_core reads game memory only. It never writes memory, patches code,
+//     or calls engine functions; the static contract test enforces this.
+//   * The only engine interaction (aim input calls, visibility calls and their
+//     direct-write fallbacks) lives in the quarantined NOVA.dll modules
+//     EngineCalls / VisCheck / AimController. Injection stays in the loader;
+//     patching, hooks and remote-thread APIs are rejected everywhere.
 // ============================================================================
 #pragma once
 #include <cstdint>
@@ -144,6 +144,12 @@ namespace Offsets {
 		constexpr uintptr_t MinAlignment    = 0x5C;
 	}
 
+	// UField is the UObject-based reflection field (walked through
+	// UStruct::Children). FField is the FField-based chain (ChildProperties).
+	namespace UField {
+		constexpr uintptr_t Next = 0x28;
+	}
+
 	namespace UClass {
 		constexpr uintptr_t CastFlags             = 0xD8;
 		constexpr uintptr_t ClassDefaultObject    = 0x110;
@@ -155,8 +161,9 @@ namespace Offsets {
 	}
 
 	namespace UFunction {
-		constexpr uintptr_t FunctionFlags = 0xB0;
-		constexpr uintptr_t ExecFunction  = 0xD8;
+		constexpr uintptr_t FunctionFlags  = 0xB0;
+		constexpr uintptr_t ExecFunction   = 0xD8;
+		constexpr uint64_t  CPF_ReturnParm = 0x0000000000000400;
 	}
 
 	namespace Property {
@@ -164,6 +171,9 @@ namespace Offsets {
 		constexpr uintptr_t ElementSize     = 0x34;
 		constexpr uintptr_t PropertyFlags   = 0x38;
 		constexpr uintptr_t Offset_Internal = 0x44;
+		// FBoolProperty stores its byte offset and bit mask inline.
+		constexpr uintptr_t BoolByteOffset  = 0x49;
+		constexpr uintptr_t BoolFieldMask   = 0x4B;
 	}
 
 	namespace InSDK {
@@ -324,6 +334,20 @@ namespace Offsets {
 		constexpr int FNamePoolRel1 = 5;   // rel32 offset of first LEA
 		constexpr int FNamePoolRel2 = 14;  // rel32 offset of second LEA
 		constexpr int FNamePoolLen  = 33;
+
+		// AddPitch/AddYawInput: 12-byte prologue at the function start and a
+		// 25-byte tail at fn+0x73. The tail embeds the RotationInput field
+		// offset TWICE (off1 at +7, off2 at +15); that value discriminates
+		// pitch (RotationInputPitch) from yaw (RotationInputYaw).
+		inline constexpr unsigned char AddInputPrologue[12] = {
+			0x40, 0x53, 0x48, 0x83, 0xEC, 0x30,
+			0x48, 0x8B, 0x01, 0x48, 0x8B, 0xD9
+		};
+		constexpr size_t AddInputFnSize     = 0x8C;
+		constexpr size_t AddInputTailOffset = 0x73; // tail offset from fn start
+		constexpr size_t AddInputTailLength = 25;
+		constexpr size_t AddInputTailArg1   = 7;   // off32 position inside the tail
+		constexpr size_t AddInputTailArg2   = 15;
 	}
 
 	// ------------------------------------------------------------------------
@@ -363,50 +387,47 @@ namespace Offsets {
 	namespace Keys {
 		constexpr int MenuToggle = 0x2D; // VK_INSERT
 		constexpr int Unload     = 0x2E; // VK_DELETE
+		constexpr int AimDefault = 0x02; // VK_RBUTTON
 	}
 
 	// ========================================================================
-	// REFERENCE DATA — NOT CONSUMED BY RUNTIME CODE.
+	// ENGINE INTERACTION — [USED] by the quarantined NOVA.dll modules only.
 	//
-	// These aim/input constants are retained only so the SDK layout remains
-	// documented in one place. The read-only contract test rejects any
-	// reference to this namespace from core/ and dll/ translation units.
+	// nova_core never consumes these constants: the static contract test
+	// rejects engine-call/write tokens outside EngineCalls / VisCheck /
+	// AimController.
 	// ========================================================================
-	namespace Reference {
 
-		// APlayerController aim/input fields.
-		constexpr uintptr_t RemoteViewPitch       = 0x2BA;
-		constexpr uintptr_t ControlRotation       = 0x320; // FRotator of doubles
-		constexpr uintptr_t PCTargetViewRotation  = 0x378;
-		constexpr uintptr_t PCPlayerInput         = 0x420;
-		constexpr uintptr_t RotationInput         = 0x528; // doubles
-		constexpr uintptr_t RotationInputPitch    = 0x528;
-		constexpr uintptr_t RotationInputYaw      = 0x530;
-		constexpr uintptr_t RotationInputRoll     = 0x538;
-		constexpr uintptr_t InputYawScale         = 0x540;
-		constexpr uintptr_t InputPitchScale       = 0x544;
-		constexpr uintptr_t InputRollScale        = 0x548;
-		constexpr int       AimDefaultKey         = 0x02; // VK_RBUTTON
+	// APlayerController aim/input fields (LWC doubles).
+	namespace Aim {
+		constexpr uintptr_t ControlRotation    = 0x320; // FRotator of doubles
+		constexpr uintptr_t RotationInputPitch = 0x528;
+		constexpr uintptr_t RotationInputYaw   = 0x530;
+		constexpr int       DefaultKey         = 0x02;  // VK_RBUTTON
+	}
 
-		// Engine function RVAs — [USED] by the legacy build's aim assist only.
-		namespace Calls {
-			constexpr uintptr_t AddPitchInput = 0x3CB83C0;
-			constexpr uintptr_t AddRollInput  = 0x3CB8450;
-			constexpr uintptr_t AddYawInput   = 0x3CB85D0;
-			constexpr uintptr_t ProcessEvent  = 0x014AB3A0; // [DUMP]
-			constexpr uint8_t   ProcessEventIdx = 0x4F;     // [DUMP] vtable index
-			constexpr uintptr_t AppendString    = 0x0127FFB0; // [DUMP]
-		}
+	// Engine input functions — verified at runtime by prologue/tail signature,
+	// with a bounded executable-section scan as the patch-surviving fallback.
+	namespace EngineCalls {
+		constexpr uintptr_t AddPitchInput   = 0x3CB83C0;
+		constexpr uintptr_t AddYawInput     = 0x3CB85D0;
+		constexpr uintptr_t ProcessEvent    = 0x014AB3A0; // [DUMP] hint
+		constexpr uint8_t   ProcessEventIdx = 0x4F;       // [DUMP] vtable slot
+	}
 
-		// Signature data for the legacy input functions (documented for
-		// completeness; unreachable from runtime code).
-		inline constexpr unsigned char AddInputPrologue[12] = {
-			0x40, 0x53, 0x48, 0x83, 0xEC, 0x30,
-			0x48, 0x8B, 0x01, 0x48, 0x8B, 0xD9
-		};
-		constexpr int AddInputFnSize  = 0x8C;
-		constexpr int AddInputTailOff = 0x73;
-		constexpr int AddInputTailLen = 25;
+	// Vischeck — the UFunction is located by name on the local
+	// PlayerController's class hierarchy and invoked through ProcessEvent.
+	namespace VisCheck {
+		constexpr const char* LineOfSightFunction = "LineOfSightTo";       // AController
+		constexpr const char* RenderFunction      = "WasRecentlyRendered"; // AActor fallback
+		constexpr unsigned    RetryMs             = 2000;
+		constexpr int         MaxTries            = 5;
+		constexpr unsigned    CacheTtlMs          = 50;
+		constexpr float       RenderTolerance     = 0.2f;
+		constexpr int         MaxClassDepth       = 64;
+		constexpr int         MaxFields           = 4096;
+		constexpr int         MaxProperties       = 256;
+		constexpr int         MaxParams           = 0x200;
 	}
 
 } // namespace Offsets

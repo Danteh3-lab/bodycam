@@ -6,8 +6,11 @@
 // status and a text-labelled runtime health indicator (never colour alone).
 // ============================================================================
 #pragma once
+#include "AimController.hpp"
+#include "EngineCalls.hpp"
 #include "Particles.hpp"
 #include "SettingsStore.hpp"
+#include "VisCheck.hpp"
 
 #include "nova/Config.hpp"
 #include "nova/Diagnostics.hpp"
@@ -33,6 +36,9 @@ public:
 	          const nova::RuntimeDiagnostics& diagnostics,
 	          const nova::ResolverDiagnostics& resolver,
 	          const nova::CollectionDiagnostics& collection,
+	          const AimTelemetry& aim,
+	          const EngineCalls::Status& engineCalls,
+	          const VisCheck::Status& vischeck,
 	          const nova::OverlayConfig& liveConfig,
 	          UiState& state,
 	          bool animationsEnabled);
@@ -51,13 +57,18 @@ private:
 	void DrawHeader(nova::OverlayConfig& config, const nova::RuntimeDiagnostics& diagnostics,
 	                SettingsStore& store, UiState& state, bool* changed);
 	void DrawOverview(const nova::RuntimeDiagnostics& diagnostics, const nova::OverlayConfig& config);
-	void DrawPlayers(nova::OverlayConfig& config, bool* changed);
+	void DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vischeck, bool* changed);
+	void DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
+	             const EngineCalls::Status& engineCalls, const VisCheck::Status& vischeck,
+	             bool* changed);
 	void DrawVisuals(nova::OverlayConfig& config, bool* changed);
 	void DrawOverlaySection(nova::OverlayConfig& config, const nova::RuntimeDiagnostics& diagnostics,
 	                        bool* changed);
 	void DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 	                     const nova::ResolverDiagnostics& resolver,
-	                     const nova::CollectionDiagnostics& collection);
+	                     const nova::CollectionDiagnostics& collection,
+	                     const AimTelemetry& aim,
+	                     const VisCheck::Status& vischeck);
 
 	static ImU32 HealthColor(const nova::RuntimeDiagnostics& diagnostics);
 

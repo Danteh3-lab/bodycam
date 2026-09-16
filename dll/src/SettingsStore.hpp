@@ -2,7 +2,7 @@
 // SettingsStore — owns the live OverlayConfig.
 //
 // Edits apply immediately to the live config; persistence is debounced by
-// 500 ms and flushed on unload. A corrupt file is backed up by the core
+// 500 ms and flushed on stop. A corrupt file is backed up by the core
 // loader before defaults take over.
 // ============================================================================
 #pragma once
@@ -28,7 +28,7 @@ public:
 	// Debounced persistence; call once per UI frame with a monotonic clock.
 	void Tick(uint64_t nowMs);
 
-	// Unconditional save (unload path).
+	// Unconditional save (stop path).
 	bool Flush();
 
 	[[nodiscard]] std::string StatusText() const;

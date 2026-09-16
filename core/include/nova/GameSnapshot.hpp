@@ -47,6 +47,10 @@ struct PlayerSnapshot {
 	float      maxHealth = 100.0f;
 	bool       dead = false;
 
+	// Engine visibility query result. Fail-open: stays true when no probe is
+	// attached or the probe could not answer.
+	bool       visible = true;
+
 	bool       hasName = false;
 	char       name[Offsets::Limits::MaxNameLen] = {};
 

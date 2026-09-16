@@ -88,6 +88,62 @@ NOVA_TEST(ConfigClampsInvalidValues) {
 	CHECK(config.menu.y < 0.0f);
 }
 
+NOVA_TEST(ConfigAimRoundTripAndClamps) {
+	nova::OverlayConfig config;
+	config.aim.enabled = true;
+	config.aim.softAim = true;
+	config.aim.visibleOnly = true;
+	config.aim.method = 1;
+	config.aim.boneMode = 1;
+	config.aim.fov = 222.0f;
+	config.aim.softFov = 66.0f;
+	config.aim.maxStep = 7.0f;
+	config.players.visibleOnly = true;
+	config.unsafeEngineCalls = true;
+
+	const std::string text = nova::SerializeOverlayConfig(config);
+	nova::ConfigLoadReport report;
+	const nova::OverlayConfig loaded = nova::DeserializeOverlayConfig(text, report);
+
+	CHECK(report.source == nova::ConfigSource::Loaded);
+	CHECK_EQ(loaded.aim.enabled, true);
+	CHECK_EQ(loaded.aim.softAim, true);
+	CHECK_EQ(loaded.aim.visibleOnly, true);
+	CHECK_EQ(loaded.aim.method, 1);
+	CHECK_EQ(loaded.aim.boneMode, 1);
+	CHECK(std::abs(loaded.aim.fov - 222.0f) < 1e-3);
+	CHECK(std::abs(loaded.aim.softFov - 66.0f) < 1e-3);
+	CHECK(std::abs(loaded.aim.maxStep - 7.0f) < 1e-3);
+	CHECK_EQ(loaded.players.visibleOnly, true);
+	CHECK_EQ(loaded.players.dimOccluded, false);
+	CHECK_EQ(loaded.unsafeEngineCalls, true);
+
+	// Visibility modes are mutually exclusive: visible-only wins on load too.
+	nova::OverlayConfig both;
+	both.players.visibleOnly = true;
+	both.players.dimOccluded = true;
+	nova::ClampOverlayConfig(both);
+	CHECK_EQ(both.players.visibleOnly, true);
+	CHECK_EQ(both.players.dimOccluded, false);
+
+	nova::OverlayConfig clamped;
+	clamped.aim.method = 9;
+	clamped.aim.boneMode = 9;
+	clamped.aim.fov = 1.0f;
+	clamped.aim.smooth = 0.0f;
+	clamped.aim.maxStep = 999.0f;
+	clamped.aim.softFov = 1.0f;
+	clamped.aim.softSmooth = 99.0f;
+	nova::ClampOverlayConfig(clamped);
+	CHECK_EQ(clamped.aim.method, 1);
+	CHECK_EQ(clamped.aim.boneMode, 0);
+	CHECK(std::abs(clamped.aim.fov - 10.0f) < 1e-3);
+	CHECK(std::abs(clamped.aim.smooth - 1.0f) < 1e-3);
+	CHECK(std::abs(clamped.aim.maxStep - 90.0f) < 1e-3);
+	CHECK(std::abs(clamped.aim.softFov - 10.0f) < 1e-3);
+	CHECK(std::abs(clamped.aim.softSmooth - 10.0f) < 1e-3);
+}
+
 NOVA_TEST(ConfigCorruptionCreatesBackup) {
 	const std::filesystem::path directory = MakeTempDirectory("corrupt");
 	const std::filesystem::path path = directory / "settings.json";

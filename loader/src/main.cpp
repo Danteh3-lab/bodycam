@@ -359,7 +359,8 @@ int RunLoader(int argc, wchar_t** argv) {
 
 	// Already-loaded check first (uses a toolhelp snapshot, no strong rights).
 	if (ModuleAlreadyLoaded(pid, kDllName)) {
-		wprintf(L"[i] NOVA.dll is already loaded in that process; nothing to do.\n");
+		wprintf(L"[i] NOVA.dll is already loaded in that process; nothing to do. "
+		        L"Restart the game to load NOVA again.\n");
 		return kAlreadyLoaded;
 	}
 
@@ -432,7 +433,8 @@ int RunLoader(int argc, wchar_t** argv) {
 	}
 
 	wprintf(L"[+] %ls\n", result.message.c_str());
-	wprintf(L"    INSERT toggles the NOVA menu, DELETE unloads.\n");
+	wprintf(L"    INSERT toggles the NOVA menu, DELETE stops NOVA "
+	        L"(restart the game to load it again).\n");
 	return kSuccess;
 }
 

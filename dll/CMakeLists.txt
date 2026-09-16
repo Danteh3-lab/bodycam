@@ -10,6 +10,10 @@ add_library(NOVA SHARED
   src/BuildIdentity.cpp
   src/Platform.cpp
   src/ProcessMemory.cpp
+  src/GameThread.cpp
+  src/EngineCalls.cpp
+  src/VisCheck.cpp
+  src/AimController.cpp
 )
 add_library(nova::dll ALIAS NOVA)
 

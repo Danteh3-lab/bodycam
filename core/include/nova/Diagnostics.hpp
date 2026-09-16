@@ -23,6 +23,7 @@ struct EntityCounters {
 	int drones = 0;
 	int droneFiltered = 0;
 	int offScreen = 0;
+	int occluded = 0;
 
 	int rejected() const {
 		return noPawn + self + teamFiltered + dead + noPosition + tooFar + droneFiltered;

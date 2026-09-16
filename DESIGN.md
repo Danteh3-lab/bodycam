@@ -44,6 +44,7 @@ deliberately high-contrast so it stays readable over the game's bright frames.
 | `kEspEnemy`  | `255, 62, 62, 255`    | Enemy boxes, skeleton, head dot      | Red = hostile, matches genre convention. |
 | `kEspTeam`   | `82, 150, 255, 255`   | Team boxes                           | Blue = friendly. |
 | `kEspDrone`  | `0, 220, 255, 255`    | `[DRONE]` label                      | Cyan distinguishes the drone entity from the enemy red. |
+| `kEspOccluded`| `158, 158, 158, 255` | Dim occluded players                 | Neutral grey reads as "known but not visible" without implying threat. |
 | `kEspInfo`   | `220, 220, 220, 255`  | Distance text                        | Neutral so it never implies threat. |
 | `kEspOutline`| `0, 0, 0, 255`        | ESP outline pass                     | Black outline keeps coloured shapes legible on white surfaces. |
 
@@ -73,7 +74,7 @@ settings status ("Saved 12:01:33", "Save failed", ...).
 
 ## 3. Layout
 
-The panel is a single window with a fixed five-section structure:
+The panel is a single window with a fixed six-section structure:
 
 ```
 +---------------------------------------------------------------+
@@ -82,6 +83,7 @@ The panel is a single window with a fixed five-section structure:
 +----------+----------------------------------------------------+
 | Overview |  (particle field, clipped to this window)           |
 | Players  |                                                    |
+| Aim      |                                                    |
 | Visuals  |  content for the selected section                   |
 | Overlay  |                                                    |
 | Diagnostics                                                 |
@@ -112,7 +114,7 @@ The header health indicator renders one of these labels (text, not colour):
 | `Ready` (roster 0)            | amber   | Valid world, empty roster. |
 | `Recovering after map change` | amber   | Previously ready, caches cleared. |
 | `Offsets invalid`             | red     | Known build mismatch; ESP stays disabled. |
-| `Renderer failure`            | red   | D3D11 device could not be recovered; NOVA unloads. |
+| `Renderer failure`            | red   | D3D11 device could not be recovered; NOVA stops. |
 
 ESP is drawn only when the state is `Ready` **and** the latest snapshot is valid.
 Invalid snapshots render nothing rather than stale pointers.
@@ -165,7 +167,54 @@ motion that competes with the ESP or harms accessibility.
 
 ---
 
-## 7. Accessibility checklist
+## 7. Aim and visibility check
+
+Aim assist and the visibility check are the only features that interact with
+the game; they live in the quarantined NOVA.dll modules
+`EngineCalls` / `VisCheck` / `AimController`. `nova_core` remains read-only and
+the static contract test rejects engine interaction tokens anywhere else.
+
+* Targeting is a pure function over the immutable snapshot
+  (`nova::SelectAimTarget`): self, drones and dead players are skipped;
+  teammates and occluded players are filtered per settings; the closest
+  projection to the crosshair inside the FOV circle wins.
+* The view delta comes from `ControlRotation` and the target angle, divided by
+  the smoothing and hard-capped by **Max step**. Soft aim uses the tighter FOV,
+  the head bone and a 180° cap, and engages only while the fire button is held.
+  Every method writes the same capped step; the legacy `ControlRotation` path
+  included.
+* Engine functions run only on the game thread and only when the owner
+  enables **Allow engine calls (unsafe)**. `GameThreadExecutor` proves a
+  user-mode APC round trip to the window-owning thread at startup (no hooks)
+  and queues every method there, including the direct `RotationInput` /
+  `ControlRotation` writes; a timeout cancels a not-yet-started task and
+  latches failure. Thread identity alone does not prove a safe engine phase,
+  so engine calls stay off by default and are never retried through another
+  method. When the path is not verified, no method is attempted.
+* Application methods: the engine's `AddYawInput`/`AddPitchInput` (verified by
+  prologue + tail signature, bounded executable-section scan fallback), a
+  direct `RotationInput` write, or the legacy `ControlRotation` overwrite. The
+  input scale is measured at runtime (0.05 probe) so a patch cannot silently
+  invert the direction. Roll is never written.
+* Vischeck accepts only a signature-verified `ProcessEvent`; an unverified RVA
+  disables the check, and the check itself is off until **Allow engine calls
+  (unsafe)** is enabled. `LineOfSightTo` is called on the game thread, with
+  `WasRecentlyRendered` as fallback. Reflected parameter offsets are
+  individually bounds-checked before the parameter block is built. Results are
+  cached for 50 ms and fail open: an unresolved or faulting check reports
+  visible, so nothing silently disappears. The cached controller, function and
+  results are dropped on a controller change or map transition.
+* The module is pinned when the game-thread path is opened, so an APC
+  delivered late can never execute in unmapped code; shutdown joins the worker
+  and cancels queued tasks first. `DELETE` therefore stops NOVA but leaves the
+  pinned module mapped: restart the game to inject again.
+* Aim telemetry (target, crosshair distance, step) and the engine/vischeck
+  status strings are published in the worker frame and surfaced in the Aim and
+  Diagnostics sections.
+
+---
+
+## 8. Accessibility checklist
 
 - Text contrast: `kText` on `kSurface0` is ~14:1.
 - All state communicated by text plus colour.

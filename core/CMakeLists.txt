@@ -8,6 +8,7 @@ add_library(nova_core STATIC
   src/WorldResolver.cpp
   src/Skeleton.cpp
   src/SnapshotCollector.cpp
+  src/Aim.cpp
   src/Config.cpp
   src/Logging.cpp
   src/RuntimeDiagnostics.cpp

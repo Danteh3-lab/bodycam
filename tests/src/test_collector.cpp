@@ -218,3 +218,67 @@ NOVA_TEST(ClassifyByClassNameRules) {
 	CHECK(nova::ClassifyByClassName("") == nova::PlayerKind::Unknown);
 	CHECK(nova::ClassifyByClassName(nullptr) == nova::PlayerKind::Unknown);
 }
+
+namespace {
+
+struct FakeVisibilityProbe final : nova::VisibilityProbe {
+	bool activeFlag = true;
+	bool result = false;
+	mutable int calls = 0;
+
+	[[nodiscard]] bool active() const override { return activeFlag; }
+	[[nodiscard]] bool IsVisible(uintptr_t, const nova::FVector&) const override {
+		++calls;
+		return result;
+	}
+};
+
+} // namespace
+
+NOVA_TEST(CaptureAppliesVisibilityProbe) {
+	novatest::WorldFixture fixture;
+	nova::NamePool names(fixture.memory);
+	FakeVisibilityProbe probe;
+	nova::SnapshotCollector collector(fixture.memory, names, &probe);
+	nova::WorldResolver resolver{ fixture.memory, names };
+
+	fixture.AddPlayer(1, 100.0f, 100.0f, "BP_Character_C",
+	                  nova::FVector{ 500.0, 0.0, 100.0 }, true, "Enemy");
+	CHECK(resolver.Resolve());
+	CHECK(names.Attach(fixture.names.address()));
+
+	nova::CaptureSettings settings = DefaultSettings();
+
+	// Not requested: the probe is never consulted; visibility stays fail-open.
+	{
+		const nova::GameSnapshotPtr snapshot =
+			collector.Capture(resolver.context(), nova::ResolveStage::Ok, settings, 1, 0);
+		CHECK_EQ(probe.calls, 0);
+		CHECK_EQ(snapshot->players.size(), static_cast<size_t>(1));
+		CHECK(!snapshot->players.empty() && snapshot->players[0].visible);
+		CHECK_EQ(snapshot->counters.occluded, 0);
+	}
+
+	// Requested but inactive: still fail-open.
+	settings.visibility = true;
+	probe.activeFlag = false;
+	{
+		const nova::GameSnapshotPtr snapshot =
+			collector.Capture(resolver.context(), nova::ResolveStage::Ok, settings, 2, 0);
+		CHECK_EQ(probe.calls, 0);
+		CHECK_EQ(snapshot->players.size(), static_cast<size_t>(1));
+		CHECK(!snapshot->players.empty() && snapshot->players[0].visible);
+	}
+
+	// Requested and active: the probe result is stamped into the snapshot.
+	probe.activeFlag = true;
+	probe.result = false;
+	{
+		const nova::GameSnapshotPtr snapshot =
+			collector.Capture(resolver.context(), nova::ResolveStage::Ok, settings, 3, 0);
+		CHECK_EQ(probe.calls, 1);
+		CHECK_EQ(snapshot->players.size(), static_cast<size_t>(1));
+		CHECK(!snapshot->players.empty() && !snapshot->players[0].visible);
+		CHECK_EQ(snapshot->counters.occluded, 1);
+	}
+}

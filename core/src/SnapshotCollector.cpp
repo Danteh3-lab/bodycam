@@ -38,8 +38,9 @@ PlayerKind ClassifyByClassName(const char* className) {
 	return PlayerKind::Unknown;
 }
 
-SnapshotCollector::SnapshotCollector(const ReadOnlyMemory& memory, const NamePool& names)
-	: memory_(memory), names_(names), skeletons_(memory, names) {}
+SnapshotCollector::SnapshotCollector(const ReadOnlyMemory& memory, const NamePool& names,
+                                     const VisibilityProbe* visibility)
+	: memory_(memory), names_(names), visibility_(visibility), skeletons_(memory, names) {}
 
 void SnapshotCollector::ClearCaches() {
 	skeletons_.Clear();
@@ -406,6 +407,11 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 		if (maxDistanceCm > 0.0 && distanceCm > maxDistanceCm) {
 			++diagnostics_.entities.tooFar;
 			continue;
+		}
+
+		if (settings.visibility && visibility_ != nullptr && visibility_->active()) {
+			player.visible = visibility_->IsVisible(pawn, camera.location);
+			if (!player.visible) ++diagnostics_.entities.occluded;
 		}
 
 		if (settings.name) {

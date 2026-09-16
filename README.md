@@ -1,8 +1,9 @@
-# NOVA — Read-Only Bodycam Overlay
+# NOVA — Bodycam Overlay
 
-NOVA is a read-only Unreal Engine 5 research overlay for **Bodycam**
-(Steam app `2406770`, build `25228199`), targeting offline/private play on
-Windows x64 in windowed and borderless windowed modes.
+NOVA is an Unreal Engine 5 overlay for **Bodycam** (Steam app `2406770`,
+build `25228199`), targeting offline/private play on Windows x64 in windowed
+and borderless windowed modes. It provides a read-only ESP plus optional aim
+assist and an engine line-of-sight visibility check.
 
 Release artifacts:
 
@@ -11,11 +12,15 @@ Release artifacts:
 | `NOVA.dll`        | Injected overlay: resolver, snapshot worker, D3D11 ESP + control panel |
 | `NOVA.Loader.exe` | Minimal-rights DLL loader with validation and distinct exit codes |
 
-There is no preview application and no aim assistance. NOVA never writes game
-memory, never patches code, never calls engine functions, never hooks rendering,
-and performs no anti-cheat or stealth behaviour. The static contract test
-(`tests/src/test_contract.cpp`) enforces this for every `core/` and `dll/`
-translation unit.
+The world model is strictly read-only: `nova_core` never writes game memory,
+patches code or calls engine functions, and the static contract test enforces
+this for every `core/` file. The only engine interaction — the resolved
+`AddYawInput`/`AddPitchInput` calls, the guarded `RotationInput` /
+`ControlRotation` writes and the `ProcessEvent` visibility query — is
+quarantined in the dedicated `dll/` modules `EngineCalls`, `VisCheck` and
+`AimController`; the same test rejects those tokens everywhere else and bans
+patching, hook and injection APIs across `core/` and `dll/`. Injection stays in
+`NOVA.Loader.exe` alone. No anti-cheat or stealth behaviour is implemented.
 
 ---
 
@@ -34,10 +39,14 @@ NOVA.dll  (bootstrap thread; DllMain only disables thread notifications)
     +-- WorldResolver ........ GWorld via known RVA, then bounded data-section scan;
     |                          full pointer/container validation per stage
     +-- SnapshotCollector .... 60 Hz worker -> immutable GameSnapshot (pointer-free)
+    +-- GameThread .......... verifies a game-thread APC path (no hooks); fail-closed
+    +-- EngineCalls .......... resolved AddYawInput/AddPitchInput + guarded rotation writes
+    +-- VisCheck ............. LineOfSightTo via ProcessEvent, 50 ms cache, fail-open
+    +-- AimController ........ target selection + per-tick aim step application
     +-- OverlayWindow ........ D3D11 top-level transparent window + ImGui lifecycle
     +-- EspRenderer .......... boxes, names, health, distance, skeletons, head dots, snaplines
-    +-- NovaUi ............... Overview / Players / Visuals / Overlay / Diagnostics
-    +-- SettingsStore ........ OverlayConfig schema v1, debounced atomic saves
+    +-- NovaUi ............... Overview / Players / Aim / Visuals / Overlay / Diagnostics
+    +-- SettingsStore ........ OverlayConfig schema v2, debounced atomic saves
 ```
 
 The render loop only ever consumes published snapshots. Invalid snapshots render
@@ -103,9 +112,13 @@ Debug builds (`--config Debug`) and the test target are supported and verified.
   transition, fail-closed offsets;
 - projection modes, capsule/pose box generation, health ramp;
 - snapshot capture: filtering (self/team/dead/drone/distance), health, names,
-  pose, skeleton hierarchy/cache sharing, mesh mismatch rejection, FOV fallback;
+  pose, skeleton hierarchy/cache sharing, mesh mismatch rejection, FOV fallback,
+  visibility probe integration;
+- aim math (angle wrapping, smoothing, hard step cap) and target selection
+  (self/drone/dead/team/visibility/FOV filters, head vs mid-height);
 - configuration round-trip, clamping, migration, corruption backup, atomic save;
-- static read-only contract scan of `core/` and `dll/`.
+- static contract scan: `core/` strictly read-only, engine interaction confined
+  to the quarantine modules, patching/injection banned everywhere.
 
 ---
 
@@ -115,7 +128,10 @@ Debug builds (`--config Debug`) and the test target are supported and verified.
 2. Run `NOVA.Loader.exe` (same integrity level as the game):
    - `--dll <path>` optional, defaults to `NOVA.dll` next to the loader;
    - `--pid <id>` optional, defaults to finding `Bodycam-Win64-Shipping.exe`.
-3. In game: `INSERT` toggles the NOVA panel, `DELETE` unloads NOVA cleanly.
+3. In game: `INSERT` toggles the NOVA panel; `DELETE` stops NOVA (the overlay,
+   sampling and input stop). Opening the game-thread path pins `NOVA.dll`, so
+   it stays mapped until the game exits and the loader refuses a second
+   injection: **restart the game to load NOVA again**.
 
 The loader's exit codes:
 
@@ -133,15 +149,15 @@ The loader's exit codes:
 | 10   | Remote write failed |
 | 11   | Remote thread failed |
 | 12   | Injection timed out |
-| 13   | `NOVA.dll` is already loaded |
+| 13   | `NOVA.dll` is already loaded (restart the game to inject again) |
 | 14   | `LoadLibraryW` returned NULL in the target |
 
 ---
 
 ## Settings, logs and privacy
 
-- Settings: `%LOCALAPPDATA%\NOVA\settings.json` (schema v1). Edits apply
-  immediately; saves are atomic and debounced by 500 ms, and flush on unload.
+- Settings: `%LOCALAPPDATA%\NOVA\settings.json` (schema v2). Edits apply
+  immediately; saves are atomic and debounced by 500 ms, and flush on stop.
   Invalid values are clamped; a corrupt file is preserved as
   `settings.json.corrupt-<timestamp>.json` before defaults are restored.
 - Logs: `%LOCALAPPDATA%\NOVA\logs\nova.log`, bounded to 512 KB with one
@@ -172,10 +188,41 @@ Build gating is enforced on the PE identity, not just a version string:
 
 ---
 
+## Aim and visibility check
+
+- Hard aim engages while the right mouse button is held; soft aim corrects
+  continuously while the fire button is held. Targets are picked by screen
+  distance to the crosshair inside the configured FOV circle, with team, dead,
+  drone and occlusion filters; the head bone comes from the model's reference
+  pose. Visible only and Dim occluded are mutually exclusive in the panel.
+- Engine interaction runs on a verified game-thread path: NOVA proves a
+  user-mode APC round trip to the window-owning thread at startup, queues each
+  write/call there with a bounded wait, and cancels tasks that miss their
+  deadline. No hooks or thread suspension are involved. Same-thread execution
+  does not prove a safe engine phase, so engine function calls (`AddYawInput`/
+  `AddPitchInput` and the `ProcessEvent` vischeck) are **off by default** and
+  only run when the owner enables **Allow engine calls (unsafe)** in the Aim
+  section. The direct `RotationInput`/`ControlRotation` writes remain available
+  whenever the game-thread path verifies.
+- The direct methods write `RotationInput` or `ControlRotation` on the game
+  thread; the engine method additionally calls the game's own functions
+  (resolved by RVA, verified by signature, with a bounded executable-section
+  scan fallback and a runtime-measured input scale). Every method uses the
+  same per-tick step hard-capped by **Max step**; roll is never touched.
+  The legacy project called these engine functions directly from its own
+  thread; that unsafe pattern is what this design replaces.
+- The visibility check calls the engine's own `LineOfSightTo` (fallback:
+  `WasRecentlyRendered`) through `ProcessEvent`, cached for 50 ms. It fails
+  open: unresolved or faulting checks report visible, so nothing silently
+  disappears from the ESP.
+
+---
+
 ## Boundaries
 
-- No aim assist, soft aim, input manipulation or gameplay memory writes.
-- No engine-function calls, no detours/code patches, no render hooks.
+- The aim assist only calls the game's own input functions or performs the
+  guarded rotation writes above; there are no detours, code patches or render
+  hooks, and no render-engine interaction.
 - No anti-cheat bypass, no capture hiding, no stealth injection.
 - Offline/private play only; no online multiplayer support.
 - Exclusive fullscreen is unsupported; use windowed or borderless windowed.
@@ -196,13 +243,16 @@ Verified live against the installed Steam build `25228199`
   stale dump RVAs were still in use.
 - Settings persisted to `%LOCALAPPDATA%\NOVA\settings.json` and reloaded on the
   next injection; the corrupt/type-invalid recovery path is unit-tested.
-- `DELETE` unloaded cleanly (`settings flushed` / `NOVA unloaded` in the log),
-  `NOVA.dll` disappeared from the process module list, and the game stayed
-  alive and responsive.
+- `DELETE` stopped NOVA cleanly (`settings flushed on stop` / `NOVA stopped` in
+  the log) and the game stayed alive and responsive. Once the game-thread path
+  is opened the module is pinned: it stays mapped until the game exits, so a
+  restart is required to inject again.
 - Alt-Tab away from the game hides the overlay (no ESP over other windows).
 
 Remaining manual pass (owner-run, game running with NOVA injected): ESP over
 other pawns in a private/bots match (team/drone/dead filters), projection
 tuning, search/clear and keyboard navigation in the panel, map-transition and
-death/spectating recovery, minimize/restore, and DPI/monitor moves. The
+death/spectating recovery, minimize/restore, and DPI/monitor moves. The aim and
+vischeck paths need their live pass too (targeting feel, input-scale
+calibration, `LineOfSightTo` resolution); their pure parts are unit-tested. The
 deterministic test target covers the logic behind every one of these paths.

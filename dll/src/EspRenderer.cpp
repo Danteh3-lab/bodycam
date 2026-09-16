@@ -152,7 +152,11 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 	ProjectedPose poseScratch;
 
 	for (const nova::PlayerSnapshot& player : snapshot.players) {
-		const ImU32 color = player.sameTeam ? theme::kEspTeam : theme::kEspEnemy;
+		const bool occluded = !player.visible;
+		if (features.visibleOnly && occluded) continue;
+
+		const ImU32 color = occluded ? theme::kEspOccluded
+		                             : (player.sameTeam ? theme::kEspTeam : theme::kEspEnemy);
 
 		nova::BoxRect box;
 		bool haveBox = false;
@@ -261,6 +265,35 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 			DrawCircle(ImVec2(static_cast<float>(head.x), static_cast<float>(head.y)),
 			           features.headDotSize, color);
 		}
+	}
+}
+
+void EspRenderer::DrawAimOverlay(const nova::OverlayConfig& config, const AimTelemetry& aim,
+                                 float screenWidth, float screenHeight) {
+	if (screenWidth <= 0.0f || screenHeight <= 0.0f) return;
+	if (!config.aim.drawFov && !config.aim.drawTarget) return;
+
+	textScale_ = config.visuals.textScale;
+	outline_ = config.visuals.outline;
+	outlineExtra_ = config.visuals.outlineExtra;
+	lineThickness_ = config.visuals.lineThickness;
+
+	const ImVec2 center(screenWidth * 0.5f, screenHeight * 0.5f);
+
+	if (config.aim.drawFov) {
+		if (config.aim.enabled) {
+			DrawCircle(center, config.aim.fov, IM_COL32(255, 255, 255, 110));
+		}
+		if (config.aim.softAim) {
+			DrawCircle(center, config.aim.softFov, IM_COL32(255, 200, 0, 110));
+		}
+	}
+
+	if (config.aim.drawTarget && (config.aim.enabled || config.aim.softAim) && aim.hasTarget) {
+		DrawLine(center,
+		         ImVec2(static_cast<float>(aim.targetScreen.x),
+		                static_cast<float>(aim.targetScreen.y)),
+		         IM_COL32(255, 220, 0, 200));
 	}
 }
 

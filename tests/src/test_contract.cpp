@@ -8,9 +8,11 @@
 // ============================================================================
 #include "test_framework.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -109,9 +111,10 @@ std::string StripCommentsAndLiterals(const std::string& source) {
 	return output;
 }
 
-std::vector<std::filesystem::path> CollectSources(const std::filesystem::path& root) {
+std::vector<std::filesystem::path> CollectSources(const std::filesystem::path& root,
+                                                  std::initializer_list<const char*> directories) {
 	std::vector<std::filesystem::path> files;
-	for (const char* directory : { "core", "dll" }) {
+	for (const char* directory : directories) {
 		const std::filesystem::path base = root / directory;
 		std::error_code code;
 		if (!std::filesystem::exists(base, code)) continue;
@@ -133,8 +136,10 @@ std::string ReadFile(const std::filesystem::path& path) {
 	                   std::istreambuf_iterator<char>());
 }
 
+// Never allowed anywhere in core/ or dll/, at any time: patching, injection,
+// hooks and unbounded module loads. Only the loader may inject (asserted
+// separately), and engine interaction is quarantined to the modules below.
 const char* const kForbiddenTokens[] = {
-	// Memory mutation / patching / injection.
 	"VirtualProtect",
 	"VirtualAlloc",
 	"WriteProcessMemory",
@@ -146,25 +151,39 @@ const char* const kForbiddenTokens[] = {
 	"MinHook",
 	"MH_Initialize",
 	"LoadLibrary",
-	// Engine call / aim and input symbols (Offsets::Reference is reference-only).
-	"Offsets::Reference",
-	"Reference::Calls",
+};
+
+// Engine interaction (calls, aim fields, the write helper) is only allowed in
+// the quarantine modules; every other core/dll file must stay free of them.
+const char* const kEngineInteractionTokens[] = {
+	"Offsets::Aim",
+	"Offsets::EngineCalls",
+	"Offsets::VisCheck",
 	"ProcessEvent",
 	"AddPitchInput",
 	"AddYawInput",
-	"AddRollInput",
 	"RotationInput",
 	"RotationInputPitch",
 	"RotationInputYaw",
-	"RotationInputRoll",
 	"ControlRotation",
-	"RemoteViewPitch",
-	"PCTargetViewRotation",
-	"InputYawScale",
-	"InputPitchScale",
-	"InputRollScale",
-	"AimDefault",
+	"GuardedWrite",
+	"QueueUserAPC",
 };
+
+const char* const kQuarantineModules[] = {
+	"EngineCalls",
+	"VisCheck",
+	"AimController",
+	"GameThread",
+};
+
+bool IsQuarantinedModule(const std::filesystem::path& path) {
+	const std::string stem = path.stem().string();
+	for (const char* module : kQuarantineModules) {
+		if (stem == module) return true;
+	}
+	return false;
+}
 
 } // namespace
 
@@ -182,9 +201,33 @@ NOVA_TEST(ContractScannerSelfTest) {
 	CHECK(ContainsToken(stripped, "int y"));
 }
 
-NOVA_TEST(CoreAndDllAreStrictlyReadOnly) {
+NOVA_TEST(CoreIsStrictlyReadOnly) {
+	// nova_core never writes memory, patches code or calls engine functions.
 	const std::filesystem::path root = NOVA_SOURCE_DIR;
-	const std::vector<std::filesystem::path> files = CollectSources(root);
+	const std::vector<std::filesystem::path> files = CollectSources(root, { "core" });
+	CHECK(files.size() >= 15); // guard against a vacuous scan
+
+	int violations = 0;
+	for (const std::filesystem::path& path : files) {
+		const std::string text = StripCommentsAndLiterals(ReadFile(path));
+		for (const char* token : kForbiddenTokens) {
+			if (!ContainsToken(text, token)) continue;
+			++violations;
+			std::printf("    forbidden token '%s' in %s\n", token, path.filename().string().c_str());
+		}
+		for (const char* token : kEngineInteractionTokens) {
+			if (!ContainsToken(text, token)) continue;
+			++violations;
+			std::printf("    engine token '%s' in core file %s\n", token,
+			            path.filename().string().c_str());
+		}
+	}
+	CHECK_EQ(violations, 0);
+}
+
+NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
+	const std::filesystem::path root = NOVA_SOURCE_DIR;
+	const std::vector<std::filesystem::path> files = CollectSources(root, { "core", "dll" });
 	CHECK(files.size() >= 20); // guard against a vacuous scan
 
 	int violations = 0;
@@ -195,8 +238,64 @@ NOVA_TEST(CoreAndDllAreStrictlyReadOnly) {
 			++violations;
 			std::printf("    forbidden token '%s' in %s\n", token, path.filename().string().c_str());
 		}
+		if (IsQuarantinedModule(path)) continue;
+		for (const char* token : kEngineInteractionTokens) {
+			if (!ContainsToken(text, token)) continue;
+			++violations;
+			std::printf("    engine token '%s' outside quarantine: %s\n", token,
+			            path.filename().string().c_str());
+		}
 	}
 	CHECK_EQ(violations, 0);
+
+	// The quarantine modules must actually contain their approved APIs.
+	const std::filesystem::path dllRoot = root / "dll" / "src";
+	const std::string engine = StripCommentsAndLiterals(ReadFile(dllRoot / "EngineCalls.cpp"));
+	const std::string vischeck = StripCommentsAndLiterals(ReadFile(dllRoot / "VisCheck.cpp"));
+	const std::string vischeckHeader =
+		StripCommentsAndLiterals(ReadFile(dllRoot / "VisCheck.hpp"));
+	const std::string aim = StripCommentsAndLiterals(ReadFile(dllRoot / "AimController.cpp"));
+	const std::string gameThread = StripCommentsAndLiterals(ReadFile(dllRoot / "GameThread.cpp"));
+	CHECK(ContainsToken(engine, "AddPitchInput"));
+	CHECK(ContainsToken(engine, "AddYawInput"));
+	CHECK(ContainsToken(engine, "GuardedWriteDouble"));
+	CHECK(ContainsToken(engine, "Offsets::Aim"));
+	CHECK(ContainsToken(vischeck, "ProcessEvent"));
+	CHECK(ContainsToken(vischeck, "IsVisible"));
+	CHECK(ContainsToken(vischeckHeader, "VisibilityProbe"));
+	CHECK(ContainsToken(aim, "ControlRotation"));
+	CHECK(ContainsToken(aim, "SelectAimTarget"));
+	CHECK(ContainsToken(gameThread, "QueueUserAPC"));
+	CHECK(ContainsToken(gameThread, "GET_MODULE_HANDLE_EX_FLAG_PIN"));
+	CHECK(ContainsToken(gameThread, "CancelPending"));
+
+	// Ordering, not just presence: the module is pinned before any APC can be
+	// queued, and shutdown joins the worker before cancelling queued tasks.
+	const size_t pinPos = gameThread.find("GET_MODULE_HANDLE_EX_FLAG_PIN");
+	const size_t apcPos = gameThread.find("QueueUserAPC");
+	CHECK(pinPos != std::string::npos);
+	CHECK(apcPos != std::string::npos);
+	CHECK(pinPos < apcPos);
+
+	const std::string runtime = StripCommentsAndLiterals(ReadFile(dllRoot / "Runtime.cpp"));
+	const size_t joinPos = runtime.find("worker_.join");
+	const size_t cancelPos = runtime.find("CancelPending");
+	CHECK(joinPos != std::string::npos);
+	CHECK(cancelPos != std::string::npos);
+	CHECK(joinPos < cancelPos);
+
+	// The write helper is exclusive to EngineCalls.
+	int writeViolations = 0;
+	for (const std::filesystem::path& path : files) {
+		if (path.stem().string() == "EngineCalls") continue;
+		const std::string text = StripCommentsAndLiterals(ReadFile(path));
+		if (ContainsToken(text, "GuardedWrite")) {
+			++writeViolations;
+			std::printf("    write helper outside EngineCalls: %s\n",
+			            path.filename().string().c_str());
+		}
+	}
+	CHECK_EQ(writeViolations, 0);
 }
 
 NOVA_TEST(BootstrapTeardownIsGuarded) {

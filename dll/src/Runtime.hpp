@@ -4,16 +4,20 @@
 // States: Starting -> WaitingForWindow -> Resolving -> Ready, plus
 // OffsetsInvalid and Stopping. A 60 Hz worker samples the read-only world and
 // publishes immutable snapshots; the overlay thread renders them. Shutdown is
-// always orderly: stop/join workers, flush settings, destroy ImGui/D3D/window
-// resources, then unload.
+// always orderly: stop/join workers, cancel queued game-thread tasks, flush
+// settings, destroy ImGui/D3D/window resources, then stop.
 // ============================================================================
 #pragma once
+#include "AimController.hpp"
 #include "BuildIdentity.hpp"
+#include "EngineCalls.hpp"
 #include "EspRenderer.hpp"
+#include "GameThread.hpp"
 #include "NovaUi.hpp"
 #include "OverlayWindow.hpp"
 #include "ProcessMemory.hpp"
 #include "SettingsStore.hpp"
+#include "VisCheck.hpp"
 
 #include "nova/Config.hpp"
 #include "nova/NamePool.hpp"
@@ -40,9 +44,10 @@ public:
 
 	void RequestStop();
 
-	// Idempotent, non-throwing teardown: stops and joins the worker, flushes
-	// settings, destroys the overlay and closes the log. Must run before the
-	// DLL is unloaded; safe to call from an exception handler or a destructor.
+	// Idempotent, non-throwing teardown: stops and joins the worker, cancels
+	// queued game-thread tasks, flushes settings, destroys the overlay and
+	// closes the log. Must run before control leaves the runtime; safe to call
+	// from an exception handler or a destructor.
 	void Shutdown() noexcept;
 
 private:
@@ -51,6 +56,9 @@ private:
 		nova::RuntimeDiagnostics diagnostics;
 		nova::ResolverDiagnostics resolver;
 		nova::CollectionDiagnostics collection;
+		AimTelemetry aim;
+		EngineCalls::Status engineCalls;
+		VisCheck::Status vischeck;
 	};
 
 	Runtime() = default;
@@ -75,8 +83,15 @@ private:
 	ProcessMemory memory_;
 	std::unique_ptr<nova::NamePool> names_;
 	std::unique_ptr<nova::WorldResolver> resolver_;
+	std::unique_ptr<GameThreadExecutor> gameThread_;
+	std::unique_ptr<EngineCalls> engineCalls_;
+	std::unique_ptr<VisCheck> vischeck_;
 	std::unique_ptr<nova::SnapshotCollector> collector_;
+	std::unique_ptr<AimController> aim_;
 	std::unique_ptr<OverlayWindow> overlay_;
+
+	std::atomic<float> viewportWidth_{ 0.0f };
+	std::atomic<float> viewportHeight_{ 0.0f };
 
 	SettingsStore settings_;
 	EspRenderer esp_;

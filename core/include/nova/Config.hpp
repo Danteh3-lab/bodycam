@@ -1,5 +1,5 @@
 // ============================================================================
-// OverlayConfig — versioned NOVA settings (schema v1).
+// OverlayConfig — versioned NOVA settings (schema v2).
 //
 // Persisted to %LOCALAPPDATA%\NOVA\settings.json with atomic replace.
 // Invalid values are clamped on load; a corrupt file is preserved under a
@@ -11,7 +11,7 @@
 
 namespace nova {
 
-inline constexpr int kConfigSchemaVersion = 1;
+inline constexpr int kConfigSchemaVersion = 2;
 
 enum class BoxMode : int {
 	None = 0,
@@ -34,7 +34,27 @@ struct PlayerFeatureConfig {
 	bool  showTeam = false;
 	bool  showDrones = true;
 	bool  hideDead = true;
+	bool  visibleOnly = false;
+	bool  dimOccluded = false;
 	float maxDistance = 300.0f;
+};
+
+struct AimConfig {
+	bool  enabled = false;
+	bool  ignoreTeam = true;
+	bool  visibleOnly = false;
+	float fov = 150.0f;      // screen pixels around the crosshair
+	float smooth = 5.0f;     // higher is slower; 1 closes the gap per tick
+	int   method = 1;        // 0 engine call (opt-in), 1 rotation input, 2 control rotation
+	int   boneMode = 0;      // 0 head bone, 1 mid-height
+	float maxStep = 25.0f;   // hard cap in degrees per tick
+	bool  drawFov = true;
+	bool  drawTarget = false;
+
+	bool  softAim = false;
+	float softFov = 120.0f;
+	float softSmooth = 1.0f;
+	bool  softHeadOnly = true;
 };
 
 struct VisualStyleConfig {
@@ -60,7 +80,12 @@ struct OverlayConfig {
 	int                  schemaVersion = kConfigSchemaVersion;
 	bool                 espEnabled = false;
 	bool                 reducedMotion = false;
+	// Off by default: engine function calls (AddYawInput/AddPitchInput and the
+	// ProcessEvent vischeck) can re-enter engine code at an unsafe phase. Only
+	// the owner can accept that risk.
+	bool                 unsafeEngineCalls = false;
 	PlayerFeatureConfig  players;
+	AimConfig            aim;
 	VisualStyleConfig    visuals;
 	ProjectionConfig     projection;
 	MenuConfig           menu;

@@ -8,6 +8,7 @@
 #include "nova/NamePool.hpp"
 #include "nova/ReadOnlyMemory.hpp"
 #include "nova/Skeleton.hpp"
+#include "nova/VisibilityProbe.hpp"
 
 #include <cstdint>
 #include <unordered_map>
@@ -25,6 +26,7 @@ struct CaptureSettings {
 	bool   showTeam = false;
 	bool   showDrones = true;
 	bool   hideDead = true;
+	bool   visibility = false; // run the attached VisibilityProbe per pawn
 	double maxDistanceMeters = 300.0;
 
 	[[nodiscard]] bool collectPose() const { return boxFromBones || skeleton || headDot; }
@@ -38,7 +40,9 @@ struct CollectionDiagnostics {
 
 class SnapshotCollector {
 public:
-	SnapshotCollector(const ReadOnlyMemory& memory, const NamePool& names);
+	// `visibility` is optional; when null, PlayerSnapshot::visible stays true.
+	SnapshotCollector(const ReadOnlyMemory& memory, const NamePool& names,
+	                  const VisibilityProbe* visibility = nullptr);
 
 	// Builds a complete immutable snapshot. `stage` is the resolver stage at
 	// capture time, surfaced in the UI when the snapshot is invalid.
@@ -64,6 +68,7 @@ private:
 
 	const ReadOnlyMemory& memory_;
 	const NamePool&       names_;
+	const VisibilityProbe* visibility_ = nullptr;
 	SkeletonCache         skeletons_;
 	std::unordered_map<uintptr_t, uint8_t> classKinds_;
 	CollectionDiagnostics diagnostics_;
