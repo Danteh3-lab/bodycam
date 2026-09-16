@@ -1,12 +1,19 @@
 // ============================================================================
-// Offsets.hpp — consolidated offset reference for the Bodycam project.
-// Standalone file (only needs <cstdint>). Kept OUT of the build on purpose:
-// it is the starting point for a rewrite from scratch.
+// Offsets.hpp — THE single offset source for NOVA.
 //
 // Target : Bodycam-Win64-Shipping.exe (x64, Unreal Engine 5, LWC doubles)
-// Status : values marked [USED] are verified by the current build at runtime.
-//          values marked [DUMP] come from an SDK dump and are NOT consumed by
-//          the current build — re-verify before trusting them after a patch.
+// Profile: Steam app 2406770, Steam build 25228199
+// Status : values marked [USED] are verified against the target build.
+//          values marked [DUMP] come from an SDK dump and are validated at
+//          runtime before their pointer chain is trusted.
+//
+// Read-only contract:
+//   * The runtime (nova_core / NOVA.dll) consumes ONLY read offsets. It never
+//     writes game memory, patches code, or calls engine functions.
+//   * Aim/input constants are retained below under Offsets::Reference as
+//     documented reference data. They are intentionally NOT consumable by
+//     runtime code; the static read-only contract test rejects any reference
+//     to them from core/ and dll/ sources.
 // ============================================================================
 #pragma once
 #include <cstdint>
@@ -14,31 +21,103 @@
 namespace Offsets {
 
 	// ------------------------------------------------------------------------
-	// Target process / module
+	// Profile metadata — identifies the binary these offsets were verified on.
 	// ------------------------------------------------------------------------
-	inline constexpr char kTargetProcess[] = "Bodycam-Win64-Shipping.exe";
-	inline constexpr char kGameModule[]    = "Bodycam-Win64-Shipping.exe";
+	// PE identity fields that are stable for a shipped build. A zero field is
+	// "unpinned"; pinned fields are compared exactly and fail closed.
+	struct ImageIdentity {
+		uint32_t sizeOfImage = 0;
+		uint32_t timeDateStamp = 0;
+		uint32_t checkSum = 0;
+		bool     valid = false;
+	};
+
+	struct Profile {
+		const char* name;             // human readable profile name
+		uint32_t    steamAppId;       // Steam application id
+		uint64_t    steamBuild;       // Steam build id the offsets were verified on
+		const char* targetProcess;    // process image name
+		const char* gameModule;       // module name used for RVAs
+		const char* knownFileVersion; // PE FileVersion of the target, or "" when
+		                              // Steam builds do not expose one. When
+		                              // non-empty the loader fails closed on a
+		                              // mismatch; empty means "unknown build".
+		ImageIdentity knownImage;     // pinned PE header identity of the build
+	};
+
+	// True when a profile pins at least one PE identity field.
+	[[nodiscard]] constexpr bool HasPinnedImageIdentity(const Profile& profile) {
+		return profile.knownImage.sizeOfImage != 0 ||
+		       profile.knownImage.timeDateStamp != 0 ||
+		       profile.knownImage.checkSum != 0;
+	}
+
+	// True when the measured image contradicts a pinned profile. An unpinned
+	// profile never conflicts (unknown builds may inject and are gated by the
+	// world invariants instead). A pinned profile whose image cannot be read
+	// fails closed.
+	[[nodiscard]] constexpr bool ImageIdentityConflictsWithProfile(const ImageIdentity& image,
+	                                                               const Profile& profile) {
+		if (!HasPinnedImageIdentity(profile)) return false;
+		if (!image.valid) return true;
+
+		if (profile.knownImage.sizeOfImage != 0 &&
+		    image.sizeOfImage != profile.knownImage.sizeOfImage) {
+			return true;
+		}
+		if (profile.knownImage.timeDateStamp != 0 &&
+		    image.timeDateStamp != profile.knownImage.timeDateStamp) {
+			return true;
+		}
+		if (profile.knownImage.checkSum != 0 && image.checkSum != profile.knownImage.checkSum) {
+			return true;
+		}
+		return false;
+	}
+
+	inline constexpr Profile kProfileSteam25228199{
+		"Bodycam Steam build 25228199",
+		2406770u,
+		25228199ull,
+		"Bodycam-Win64-Shipping.exe",
+		"Bodycam-Win64-Shipping.exe",
+		"", // Steam depot builds do not ship a version resource.
+		// PE identity of the verified build (measured from the installed
+		// Bodycam-Win64-Shipping.exe; SizeOfImage also sanity-checks that both
+		// global RVAs live inside the image).
+		ImageIdentity{
+			0x0A6FE000u, // SizeOfImage
+			0xCF9AA4C2u, // TimeDateStamp
+			0x0A2C6CC0u, // CheckSum
+			true,
+		},
+	};
+
+	inline constexpr Profile kActiveProfile = kProfileSteam25228199;
+
+	inline constexpr const char* kTargetProcess = kActiveProfile.targetProcess;
+	inline constexpr const char* kGameModule    = kActiveProfile.gameModule;
 
 	// ------------------------------------------------------------------------
 	// Globals — module RVAs from the SDK dump.
-	// [USED] GNames doubles as the FNamePool hint (verified at runtime:
-	//        entry 0 must resolve to "None").
-	// [DUMP] GObjects / GWorld / ProcessEvent / AppendString are not used by
-	//        the current build (world anchor is found by a runtime scan).
+	// GNames and GWorld are tried first and only trusted after validation.
 	// ------------------------------------------------------------------------
 	namespace Globals {
-		constexpr uintptr_t GObjects         = 0x09AAC270; // [DUMP] TUObjectArray
-		constexpr uintptr_t GNames           = 0x09990C08; // [USED] FNamePool
-		constexpr uintptr_t GWorld           = 0x09C281B8; // [DUMP] UWorld*
-		constexpr uintptr_t ProcessEvent     = 0x014AB3A0; // [DUMP] function address
-		constexpr uint8_t   ProcessEventIdx  = 0x4F;       // [DUMP] vtable index
-		constexpr uintptr_t AppendString     = 0x0127FFB0; // [DUMP] FName::AppendString
+		// Both RVAs were re-measured on Steam build 25228199 (2026-09-16):
+		//   GNames: signature scan resolved the pool at RVA 0x099C3AC0
+		//   GWorld: the stable data-section anchor slot sits at RVA 0x09C231B8;
+		//           another world-like slot at 0x09C20910 was observed to go
+		//           stale, which is exactly the case the scan fallback covers.
+		// The scanner fallbacks remain active, so a stale hint only costs one
+		// validated read attempt before the bounded scan takes over.
+		constexpr uintptr_t GNames           = 0x099C3AC0; // [USED] FNamePool
+		constexpr uintptr_t GWorld           = 0x09C231B8; // [USED] UWorld* slot
 		constexpr int32_t   ElementsPerChunk = 0x10000;    // [DUMP] GObjects chunk size
 	}
 
 	// ------------------------------------------------------------------------
-	// UE core struct layouts from the SDK dump. [DUMP] — the dump itself flags
-	// these as carried from a prior patch; UObject.* matches the live build.
+	// UE core struct layouts from the SDK dump. [DUMP] — re-verified by the
+	// resolver's pointer/container validation before use.
 	// ------------------------------------------------------------------------
 	namespace UObject {
 		constexpr uintptr_t Flags = 0x08;
@@ -66,8 +145,8 @@ namespace Offsets {
 	}
 
 	namespace UClass {
-		constexpr uintptr_t CastFlags            = 0xD8;
-		constexpr uintptr_t ClassDefaultObject   = 0x110;
+		constexpr uintptr_t CastFlags             = 0xD8;
+		constexpr uintptr_t ClassDefaultObject    = 0x110;
 		constexpr uintptr_t ImplementedInterfaces = 0x1D8;
 	}
 
@@ -98,8 +177,8 @@ namespace Offsets {
 	}
 
 	// ------------------------------------------------------------------------
-	// Gameplay offsets — [USED] by the current build (from HookFunc.h).
-	// World chain: anchor -> UWorld -> GameInstance -> LocalPlayers[0] ->
+	// Gameplay offsets — [USED] read-only world model.
+	// World chain: anchor slot -> UWorld -> GameInstance -> LocalPlayers[0] ->
 	//              PlayerController -> CameraManager / AcknowledgedPawn
 	// ------------------------------------------------------------------------
 
@@ -118,37 +197,26 @@ namespace Offsets {
 	constexpr uintptr_t LPPlayerController   = 0x30;
 	constexpr uintptr_t AspectAxisConstraint = 0xB8; // uint8 EAspectAxisConstraint
 
-	// APlayerController
-	constexpr uintptr_t AcknowledgedPawn    = 0x350;
-	constexpr uintptr_t CameraManager       = 0x360;
-	constexpr uintptr_t RemoteViewPitch     = 0x2BA;
-	constexpr uintptr_t PlayerStateRef      = 0x2C8; // AController::PlayerState
-	constexpr uintptr_t PawnController      = 0x2D8; // APawn::Controller
-	constexpr uintptr_t ACPlayerState       = 0x2B0; // controller->PlayerState (alt)
-	constexpr uintptr_t ControlRotation     = 0x320; // FRotator of doubles: P+0x00 Y+0x08 R+0x10
-	constexpr uintptr_t PCTargetViewRotation = 0x378;
-	constexpr uintptr_t PCPlayerInput       = 0x420;
-	constexpr uintptr_t RotationInput       = 0x528; // doubles
-	constexpr uintptr_t RotationInputPitch  = 0x528;
-	constexpr uintptr_t RotationInputYaw    = 0x530;
-	constexpr uintptr_t RotationInputRoll   = 0x538;
-	constexpr uintptr_t InputYawScale       = 0x540;
-	constexpr uintptr_t InputPitchScale     = 0x544;
-	constexpr uintptr_t InputRollScale      = 0x548;
+	// APlayerController — read-only fields only.
+	constexpr uintptr_t AcknowledgedPawn = 0x350;
+	constexpr uintptr_t CameraManager    = 0x360;
+	constexpr uintptr_t PlayerStateRef   = 0x2C8; // AController::PlayerState
+	constexpr uintptr_t PawnController   = 0x2D8; // APawn::Controller
+	constexpr uintptr_t ACPlayerState    = 0x2B0; // controller->PlayerState (alt)
 
 	// APlayerCameraManager — two POV tiers (current + last)
-	constexpr uintptr_t DefaultFOV    = 0x2C0;
-	constexpr uintptr_t CameraCache   = 0x1410;
-	constexpr uintptr_t POVInfo       = 0x1420; // FMinimalViewInfo
+	constexpr uintptr_t DefaultFOV      = 0x2C0;
+	constexpr uintptr_t CameraCache     = 0x1410;
+	constexpr uintptr_t POVInfo         = 0x1420; // FMinimalViewInfo
 	constexpr uintptr_t CameraCacheLast = 0x1C50;
-	constexpr uintptr_t POVInfoLast   = 0x1C60;
+	constexpr uintptr_t POVInfoLast     = 0x1C60;
 
 	// FMinimalViewInfo (relative to POVInfo)
-	constexpr uintptr_t MviLocation   = 0x00; // FVector (3 doubles)
-	constexpr uintptr_t MviRotation   = 0x18; // FRotator (3 doubles)
-	constexpr uintptr_t MviFOV        = 0x30; // float
+	constexpr uintptr_t MviLocation    = 0x00; // FVector (3 doubles)
+	constexpr uintptr_t MviRotation    = 0x18; // FRotator (3 doubles)
+	constexpr uintptr_t MviFOV         = 0x30; // float
 	constexpr uintptr_t MviAspectRatio = 0x5C; // float
-	constexpr uintptr_t MviFlags      = 0x68; // uint32, bit0 = constrain aspect
+	constexpr uintptr_t MviFlags       = 0x68; // uint32, bit0 = constrain aspect
 
 	// AGameStateBase
 	constexpr uintptr_t PlayerArray       = 0x2C0; // TArray<APlayerState*>
@@ -157,11 +225,11 @@ namespace Offsets {
 	constexpr uintptr_t PlayerArrayStride = 0x08;
 
 	// APlayerState
-	constexpr uintptr_t PSPawn    = 0x320;
-	constexpr uintptr_t PSName    = 0x340; // FString (TArray<wchar>): data+0, num+8
-	constexpr uintptr_t PSTeamId  = 0x388; // int
-	constexpr uintptr_t PSKills   = 0x38C; // int
-	constexpr uintptr_t PSDeaths  = 0x390; // int
+	constexpr uintptr_t PSPawn   = 0x320;
+	constexpr uintptr_t PSName   = 0x340; // FString (TArray<wchar>): data+0, num+8
+	constexpr uintptr_t PSTeamId = 0x388; // int
+	constexpr uintptr_t PSKills  = 0x38C; // int
+	constexpr uintptr_t PSDeaths = 0x390; // int
 
 	// APawn / ACharacter
 	constexpr uintptr_t RootComponent         = 0x1B8;
@@ -193,9 +261,9 @@ namespace Offsets {
 	constexpr uintptr_t BoneStride           = 0x60;  // sizeof(FTransform)
 
 	// FTransform (UE5 LWC, 0x60 bytes, doubles)
-	constexpr uintptr_t FTQuat       = 0x00; // fquat, 4 doubles
+	constexpr uintptr_t FTQuat        = 0x00; // fquat, 4 doubles
 	constexpr uintptr_t FTTranslation = 0x20; // FVector, 3 doubles
-	constexpr uintptr_t FTScale      = 0x40; // FVector, 3 doubles
+	constexpr uintptr_t FTScale       = 0x40; // FVector, 3 doubles
 
 	// Bodycam pawn extensions
 	constexpr uintptr_t BCAbilitySystem = 0x658;
@@ -225,17 +293,7 @@ namespace Offsets {
 	constexpr uintptr_t RefSkelScanMax       = 0x520; // scan asset+0..0x520 step 8
 
 	// ------------------------------------------------------------------------
-	// Engine function RVAs — [USED] (from game_calls.hpp). Verified at runtime
-	// by prologue + tail signature; falls back to a code-section scan.
-	// ------------------------------------------------------------------------
-	namespace Calls {
-		constexpr uintptr_t AddPitchInput = 0x3CB83C0;
-		constexpr uintptr_t AddRollInput  = 0x3CB8450;
-		constexpr uintptr_t AddYawInput   = 0x3CB85D0;
-	}
-
-	// ------------------------------------------------------------------------
-	// FNamePool layout — [USED] (from game_names.hpp).
+	// FNamePool layout — [USED].
 	// pool+0x10 = block pointer array; entry = block[idx>>16] + (idx&0xFFFF)*2;
 	// header u16 at entry+0: bit0 = wide string, length = header >> 6,
 	// characters start at entry+2.
@@ -247,9 +305,9 @@ namespace Offsets {
 	}
 
 	// ------------------------------------------------------------------------
-	// Signatures — the patch-surviving half. Static RVAs above go stale every
-	// update; these patterns re-resolve them at runtime (see game_names.hpp /
-	// game_calls.hpp for the scan loops). '?' = wildcard.
+	// Signatures — patch-surviving fallbacks. Static RVAs go stale every
+	// update; these patterns re-resolve them at runtime with bounded scans.
+	// '?' = wildcard.
 	// ------------------------------------------------------------------------
 	namespace Signatures {
 
@@ -266,26 +324,6 @@ namespace Offsets {
 		constexpr int FNamePoolRel1 = 5;   // rel32 offset of first LEA
 		constexpr int FNamePoolRel2 = 14;  // rel32 offset of second LEA
 		constexpr int FNamePoolLen  = 33;
-
-		// AddPitch/AddYaw/AddRollInput: 12-byte prologue at fn start, 25-byte
-		// tail at fn+0x73. The tail embeds the RotationInput field offset TWICE
-		// (off1 at +7, off2 at +15); the offset value IS the discriminator:
-		//   wantPitch: RotationInputPitch, wantYaw: RotationInputYaw.
-		//   fn = tailAddress - TailOffset; then verify prologue.
-		inline constexpr unsigned char AddInputPrologue[12] = {
-			0x40, 0x53, 0x48, 0x83, 0xEC, 0x30,
-			0x48, 0x8B, 0x01, 0x48, 0x8B, 0xD9
-		};
-		inline constexpr char AddInputTailPattern[] =
-			"\x0F\x5A\xC0\xF2\x0F\x58\x83????\xF2\x0F\x11\x83????"
-			"\x48\x83\xC4\x30\x5B\xC3";
-		inline constexpr char AddInputTailMask[] =
-			"xxxxxxx????xxxx????xxxxxx"; // 25 chars
-		constexpr int AddInputFnSize   = 0x8C;
-		constexpr int AddInputTailOff  = 0x73; // tail offset from fn start
-		constexpr int AddInputTailLen  = 25;
-		constexpr int AddInputOff1Pos  = 7;   // off32 positions inside the tail
-		constexpr int AddInputOff2Pos  = 15;
 	}
 
 	// ------------------------------------------------------------------------
@@ -294,6 +332,7 @@ namespace Offsets {
 	namespace Std {
 		constexpr uintptr_t TArrayData = 0x00;
 		constexpr uintptr_t TArrayNum  = 0x08;
+		constexpr uintptr_t TArrayMax  = 0x0C;
 	}
 
 	// ------------------------------------------------------------------------
@@ -304,6 +343,7 @@ namespace Offsets {
 		constexpr int   MaxBones     = 1024;
 		constexpr int   MaxNameLen   = 64;
 		constexpr int   MaxParents   = 256;
+		constexpr int   MaxLocalPlayers = 8;
 		constexpr float MinHealth    = 0.0f;
 		constexpr float MaxHealth    = 100000.0f;
 		constexpr float FovMin       = 20.0f;
@@ -314,6 +354,8 @@ namespace Offsets {
 
 	namespace Scan {
 		constexpr unsigned WorldScanBudgetMs = 1000;
+		constexpr size_t   ChunkBytes        = 0x10000;
+		constexpr size_t   ChunkOverlap      = 0x40;
 		constexpr int      RecoverLimitMin   = 120;
 		constexpr int      RecoverLimitMax   = 7680;
 	}
@@ -321,7 +363,50 @@ namespace Offsets {
 	namespace Keys {
 		constexpr int MenuToggle = 0x2D; // VK_INSERT
 		constexpr int Unload     = 0x2E; // VK_DELETE
-		constexpr int AimDefault = 0x02; // VK_RBUTTON
+	}
+
+	// ========================================================================
+	// REFERENCE DATA — NOT CONSUMED BY RUNTIME CODE.
+	//
+	// These aim/input constants are retained only so the SDK layout remains
+	// documented in one place. The read-only contract test rejects any
+	// reference to this namespace from core/ and dll/ translation units.
+	// ========================================================================
+	namespace Reference {
+
+		// APlayerController aim/input fields.
+		constexpr uintptr_t RemoteViewPitch       = 0x2BA;
+		constexpr uintptr_t ControlRotation       = 0x320; // FRotator of doubles
+		constexpr uintptr_t PCTargetViewRotation  = 0x378;
+		constexpr uintptr_t PCPlayerInput         = 0x420;
+		constexpr uintptr_t RotationInput         = 0x528; // doubles
+		constexpr uintptr_t RotationInputPitch    = 0x528;
+		constexpr uintptr_t RotationInputYaw      = 0x530;
+		constexpr uintptr_t RotationInputRoll     = 0x538;
+		constexpr uintptr_t InputYawScale         = 0x540;
+		constexpr uintptr_t InputPitchScale       = 0x544;
+		constexpr uintptr_t InputRollScale        = 0x548;
+		constexpr int       AimDefaultKey         = 0x02; // VK_RBUTTON
+
+		// Engine function RVAs — [USED] by the legacy build's aim assist only.
+		namespace Calls {
+			constexpr uintptr_t AddPitchInput = 0x3CB83C0;
+			constexpr uintptr_t AddRollInput  = 0x3CB8450;
+			constexpr uintptr_t AddYawInput   = 0x3CB85D0;
+			constexpr uintptr_t ProcessEvent  = 0x014AB3A0; // [DUMP]
+			constexpr uint8_t   ProcessEventIdx = 0x4F;     // [DUMP] vtable index
+			constexpr uintptr_t AppendString    = 0x0127FFB0; // [DUMP]
+		}
+
+		// Signature data for the legacy input functions (documented for
+		// completeness; unreachable from runtime code).
+		inline constexpr unsigned char AddInputPrologue[12] = {
+			0x40, 0x53, 0x48, 0x83, 0xEC, 0x30,
+			0x48, 0x8B, 0x01, 0x48, 0x8B, 0xD9
+		};
+		constexpr int AddInputFnSize  = 0x8C;
+		constexpr int AddInputTailOff = 0x73;
+		constexpr int AddInputTailLen = 25;
 	}
 
 } // namespace Offsets

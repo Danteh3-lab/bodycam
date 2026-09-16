@@ -1,0 +1,65 @@
+// ============================================================================
+// Theme — NOVA's rounded dark identity and font set.
+//
+// These C++ tokens are the runtime source of truth; DESIGN.md mirrors the
+// exact values and rationale. Segoe UI for controls, Bahnschrift for
+// headings, Consolas for diagnostics.
+// ============================================================================
+#pragma once
+#include <imgui.h>
+
+namespace nova_host::theme {
+
+// ---- Colour tokens --------------------------------------------------------
+inline constexpr ImU32 kSurface0   = IM_COL32(10, 11, 13, 246);  // window background
+inline constexpr ImU32 kSurface1   = IM_COL32(16, 18, 21, 255);  // child / panel
+inline constexpr ImU32 kSurface2   = IM_COL32(24, 27, 31, 255);  // frames, buttons
+inline constexpr ImU32 kSurface3   = IM_COL32(33, 37, 42, 255);  // hovered frames
+inline constexpr ImU32 kBorder     = IM_COL32(44, 49, 56, 190);
+inline constexpr ImU32 kText       = IM_COL32(236, 239, 242, 255);
+inline constexpr ImU32 kTextDim    = IM_COL32(150, 158, 168, 255);
+inline constexpr ImU32 kTextFaint  = IM_COL32(104, 112, 122, 255);
+inline constexpr ImU32 kAccent     = IM_COL32(64, 214, 224, 255);  // cyan controls/status
+inline constexpr ImU32 kAccentDim  = IM_COL32(38, 129, 137, 255);
+inline constexpr ImU32 kSuccess    = IM_COL32(74, 210, 118, 255);
+inline constexpr ImU32 kWarn       = IM_COL32(255, 176, 46, 255);
+inline constexpr ImU32 kDanger     = IM_COL32(255, 76, 76, 255);
+
+// ---- ESP semantic colours -------------------------------------------------
+inline constexpr ImU32 kEspEnemy   = IM_COL32(255, 62, 62, 255);   // red
+inline constexpr ImU32 kEspTeam    = IM_COL32(82, 150, 255, 255);  // blue
+inline constexpr ImU32 kEspDrone   = IM_COL32(0, 220, 255, 255);   // cyan
+inline constexpr ImU32 kEspInfo    = IM_COL32(220, 220, 220, 255); // neutral text
+inline constexpr ImU32 kEspOutline = IM_COL32(0, 0, 0, 255);
+
+// ---- Metrics --------------------------------------------------------------
+inline constexpr float kWindowRounding = 12.0f;
+inline constexpr float kChildRounding  = 8.0f;
+inline constexpr float kFrameRounding  = 6.0f;
+inline constexpr float kPopupRounding  = 8.0f;
+inline constexpr float kLabelWidth     = 170.0f;
+
+struct FontSet {
+	ImFont* body = nullptr;
+	ImFont* heading = nullptr;
+	ImFont* mono = nullptr;
+	bool systemFonts = false;
+};
+
+// Applies style colours/rounding. Call once after the ImGui context exists.
+void Apply();
+
+// Loads the system font set. Returns false when only the built-in default
+// font could be used (headings/mono then share the default face).
+bool LoadFonts(float baseSize, float dpiScale);
+
+[[nodiscard]] FontSet& Fonts();
+
+void PushHeading(float scale = 1.0f);
+void PushMono(float scale = 1.0f);
+void Pop();
+
+// Convenience colour helpers.
+[[nodiscard]] ImVec4 ToVec4(ImU32 color);
+
+} // namespace nova_host::theme

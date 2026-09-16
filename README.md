@@ -1,72 +1,208 @@
-# NOVA — Bodycam Internal Overlay
+# NOVA — Read-Only Bodycam Overlay
 
-An educational Unreal Engine research project for the game **Bodycam**. It demonstrates an
-internal DirectX 9 overlay (ESP + aim assist), dynamic pattern-based resolution of engine
-symbols (world anchor, name pool, input functions), and a LoadLibrary-based injector.
+NOVA is a read-only Unreal Engine 5 research overlay for **Bodycam**
+(Steam app `2406770`, build `25228199`), targeting offline/private play on
+Windows x64 in windowed and borderless windowed modes.
 
-> **DISCLAIMER — FOR EDUCATIONAL PURPOSES ONLY**
->
-> This repository exists solely to demonstrate Windows reverse-engineering and game-hacking
-> techniques: memory layout of the Unreal Engine object model, runtime signature scanning,
-> internal rendering overlays, and DLL injection. It is **not** intended for use against
-> real multiplayer services, and using it in online matches violates most games' terms of
-> service and may result in a permanent ban. The author is not responsible for any misuse.
-> **Use at your own risk, in offline / private environments only.**
+Release artifacts:
 
-## What it demonstrates
+| Artifact          | Description |
+|-------------------|-------------|
+| `NOVA.dll`        | Injected overlay: resolver, snapshot worker, D3D11 ESP + control panel |
+| `NOVA.Loader.exe` | Minimal-rights DLL loader with validation and distinct exit codes |
 
-- **Unreal Engine object model walk** — `UWorld` anchor discovery by scanning data sections
-  and validating the full chain (`GameInstance -> LocalPlayers -> PlayerController ->
-  CameraManager -> GameState -> PlayerArray`), with map-change recovery and re-anchoring.
-- **FNamePool (GNames) resolution** — verified static hint plus a fallback signature scan
-  over the executable's code sections.
-- **Internal overlay** — a transparent DirectX 9 (D3D9Ex) window with an ImGui menu,
-  box/skeleton/health/distance ESP, and an aim-assist demo that moves the view through the
-  engine's own `AddYawInput`/`AddPitchInput` functions (verified by signature).
-- **Injection** — a small x64 loader that maps the DLL into the target process via
-  `CreateRemoteThread` + `LoadLibraryA`.
+There is no preview application and no aim assistance. NOVA never writes game
+memory, never patches code, never calls engine functions, never hooks rendering,
+and performs no anti-cheat or stealth behaviour. The static contract test
+(`tests/src/test_contract.cpp`) enforces this for every `core/` and `dll/`
+translation unit.
+
+---
+
+## Architecture
+
+```
+NOVA.Loader.exe
+    |  validates DLL (x64), target (x64), build when discoverable, not loaded
+    |  OpenProcess(minimum rights) -> VirtualAllocEx/WriteProcessMemory ->
+    |  CreateRemoteThread(LoadLibraryW) -> NOVA.dll
+    v
+NOVA.dll  (bootstrap thread; DllMain only disables thread notifications)
+    |
+    +-- ProcessMemory ........ Win32 implementation of ReadOnlyMemory (SEH-guarded reads)
+    +-- NamePool ............. FNamePool via known RVA, then bounded signature scan
+    +-- WorldResolver ........ GWorld via known RVA, then bounded data-section scan;
+    |                          full pointer/container validation per stage
+    +-- SnapshotCollector .... 60 Hz worker -> immutable GameSnapshot (pointer-free)
+    +-- OverlayWindow ........ D3D11 top-level transparent window + ImGui lifecycle
+    +-- EspRenderer .......... boxes, names, health, distance, skeletons, head dots, snaplines
+    +-- NovaUi ............... Overview / Players / Visuals / Overlay / Diagnostics
+    +-- SettingsStore ........ OverlayConfig schema v1, debounced atomic saves
+```
+
+The render loop only ever consumes published snapshots. Invalid snapshots render
+nothing instead of falling back to stale pointers.
+
+---
 
 ## Repository layout
 
 ```
-ImGuiExternal.sln          Visual Studio 2022 solution (NOVA.dll + Loader)
-ImGuiExternal/             The internal cheat (DLL)
-  Source.cpp               Overlay, menu, ESP, aim assist
-  reader.hpp               SEH-guarded in-process memory reads/writes, world scan
-  game_names.hpp           FNamePool resolution + signature scan
-  game_calls.hpp           AddPitch/AddYawInput resolution + calibration
-  esp_render.hpp           Rendering helpers
-  WorldToScreen.hpp        Projection
-  HookFunc.h               Game offsets (UObject, world chain, components, …)
-  Libraries/               Vendored DirectX headers and Dear ImGui
-Loader/                    Injection loader (EXE)
-  main.cpp                 Process discovery + LoadLibraryA injection
+Offsets.hpp            single offset source + profile metadata (app/build)
+DESIGN.md              theme tokens, layout, states, accessibility notes
+CMakeLists.txt         NOVA.dll + NOVA.Loader.exe + nova_core + tests
+core/                  read-only core library (no ImGui, no Win32 UI)
+  include/nova/        ReadOnlyMemory, WorldResolver, SnapshotCollector, Config, ...
+  src/
+dll/                   the injected overlay (D3D11 + ImGui)
+loader/                NOVA.Loader.exe
+tests/                 non-shipping test target with fake-memory fixtures
+third_party/
+  imgui/               Dear ImGui v1.92.9 (MIT, vendored)
+  nlohmann/            nlohmann/json v3.12.0 (MIT, vendored)
 ```
+
+Dependencies are vendored; CMake performs **no** downloads.
+
+---
 
 ## Building
 
-Requirements: Visual Studio 2022 (v143), Windows 10/11 SDK, x64.
+Requirements: Visual Studio 18 2026 (Build Tools or IDE) with the MSVC x64
+toolset and a Windows 10/11 SDK; CMake 3.28+ (bundled with the VS installation
+works). Project code is C++20 with `/W4 /WX`, conformance mode and the static
+MSVC runtime; third-party sources are compiled with isolated warnings.
 
-1. Open `ImGuiExternal.sln`.
-2. Build **Release | x64**.
-   - Output: `x64\Release\NOVA.dll` and `x64\Release\Loader.exe`.
+```powershell
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Outputs:
+
+```
+build\dll\Release\NOVA.dll
+build\loader\Release\NOVA.Loader.exe
+build\core\Release\nova_core.lib
+build\tests\Release\nova_tests.exe
+```
+
+Debug builds (`--config Debug`) and the test target are supported and verified.
+
+---
+
+## Tests
+
+`nova_tests` is a non-shipping target with no framework dependency. Coverage:
+
+- pointer/range guards, guarded reads, UE TArray bounds, FTransform layout;
+- narrow/wide FName decoding, pool plausibility, signature matcher;
+- resolver: known RVA, every reachable chain-stage failure, data-section anchor
+  fallback, FNamePool signature fallback, outer-world rescue + re-anchor, map
+  transition, fail-closed offsets;
+- projection modes, capsule/pose box generation, health ramp;
+- snapshot capture: filtering (self/team/dead/drone/distance), health, names,
+  pose, skeleton hierarchy/cache sharing, mesh mismatch rejection, FOV fallback;
+- configuration round-trip, clamping, migration, corruption backup, atomic save;
+- static read-only contract scan of `core/` and `dll/`.
+
+---
 
 ## Usage
 
-1. Build **Release | x64** and start the game (`Bodycam-Win64-Shipping.exe`).
-2. Run `Loader.exe` **as administrator** (optionally pass a DLL path as argument).
-3. In-game: **INSERT** toggles the menu, **DELETE** unloads.
+1. Start Bodycam (windowed or borderless windowed).
+2. Run `NOVA.Loader.exe` (same integrity level as the game):
+   - `--dll <path>` optional, defaults to `NOVA.dll` next to the loader;
+   - `--pid <id>` optional, defaults to finding `Bodycam-Win64-Shipping.exe`.
+3. In game: `INSERT` toggles the NOVA panel, `DELETE` unloads NOVA cleanly.
 
-The overlay is confirmed every frame by checking that your own `PlayerState` is inside the
-world's roster, so a stale anchor is recovered automatically after map changes.
+The loader's exit codes:
 
-## Notes on offsets
+| Code | Meaning |
+|------|---------|
+| 0    | Injection succeeded (or `--help`) |
+| 2    | Invalid arguments |
+| 3    | DLL not found |
+| 4    | DLL is not a valid AMD64 image |
+| 5    | Target process not found |
+| 6    | Target process is not x64 |
+| 7    | Known build mismatch (profile pins a version) |
+| 8    | Access denied while opening the target |
+| 9    | Remote allocation failed |
+| 10   | Remote write failed |
+| 11   | Remote thread failed |
+| 12   | Injection timed out |
+| 13   | `NOVA.dll` is already loaded |
+| 14   | `LoadLibraryW` returned NULL in the target |
 
-Game offsets live in `ImGuiExternal/HookFunc.h` and the FNamePool hint in
-`ImGuiExternal/game_names.hpp`. These are tied to a specific game build and will go stale
-after an update. Where possible the code falls back to runtime signature scans rather than
-trusting hardcoded addresses.
+---
 
-## License / responsibility
+## Settings, logs and privacy
 
-Provided for learning only. Do not use it to gain an unfair advantage in live games.
+- Settings: `%LOCALAPPDATA%\NOVA\settings.json` (schema v1). Edits apply
+  immediately; saves are atomic and debounced by 500 ms, and flush on unload.
+  Invalid values are clamped; a corrupt file is preserved as
+  `settings.json.corrupt-<timestamp>.json` before defaults are restored.
+- Logs: `%LOCALAPPDATA%\NOVA\logs\nova.log`, bounded to 512 KB with one
+  rotation. Lifecycle stages, timings, failures and build fingerprints only —
+  no player names or gameplay data.
+
+---
+
+## Offsets and build gating
+
+`Offsets.hpp` is the single offset source and carries the profile metadata
+(Steam app `2406770`, build `25228199`). Both globals were re-measured against
+the installed build: `GNames` at RVA `0x099C3AC0` and the stable `GWorld` anchor
+slot at RVA `0x09C231B8`. They are resolved from their RVAs first and only
+trusted after full validation; bounded signature and data-section scans are the
+fallbacks, with retry backoff and a bounded rescan policy.
+
+Build gating is enforced on the PE identity, not just a version string:
+
+- The profile pins `SizeOfImage`, `TimeDateStamp` and `CheckSum`
+  (`0x0A6FE000` / `0xCF9AA4C2` / `0x0A2C6CC0`). The loader reads these from the
+  target image and **fails closed (exit 7) before injection** on any mismatch.
+- The DLL re-measures the same fields in-process; a conflict reports the
+  terminal `Offsets invalid` state and ESP stays disabled.
+- An entirely unpinned profile still injects (unknown builds) and is gated by
+  the complete world/controller/camera/roster/name-pool/local-player
+  invariants instead.
+
+---
+
+## Boundaries
+
+- No aim assist, soft aim, input manipulation or gameplay memory writes.
+- No engine-function calls, no detours/code patches, no render hooks.
+- No anti-cheat bypass, no capture hiding, no stealth injection.
+- Offline/private play only; no online multiplayer support.
+- Exclusive fullscreen is unsupported; use windowed or borderless windowed.
+
+---
+
+## Live acceptance status
+
+Verified live against the installed Steam build `25228199`
+(`Bodycam-Win64-Shipping.exe`, borderless windowed 1920x1200):
+
+- Loader validated the pinned PE identity, injected exactly once, exit 0.
+- Overlay created; state reached `Ready` ("world, camera, roster and name pool
+  validated") in the offline shooting range, stable, with the panel showing the
+  health indicator, config status and FPS.
+- Name pool and world anchor resolved through the known RVAs; the bounded
+  data-section and signature fallbacks were also observed resolving when the
+  stale dump RVAs were still in use.
+- Settings persisted to `%LOCALAPPDATA%\NOVA\settings.json` and reloaded on the
+  next injection; the corrupt/type-invalid recovery path is unit-tested.
+- `DELETE` unloaded cleanly (`settings flushed` / `NOVA unloaded` in the log),
+  `NOVA.dll` disappeared from the process module list, and the game stayed
+  alive and responsive.
+- Alt-Tab away from the game hides the overlay (no ESP over other windows).
+
+Remaining manual pass (owner-run, game running with NOVA injected): ESP over
+other pawns in a private/bots match (team/drone/dead filters), projection
+tuning, search/clear and keyboard navigation in the panel, map-transition and
+death/spectating recovery, minimize/restore, and DPI/monitor moves. The
+deterministic test target covers the logic behind every one of these paths.
