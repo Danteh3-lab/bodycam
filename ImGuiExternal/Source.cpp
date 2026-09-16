@@ -25,12 +25,15 @@ struct EspConfig {
 		bool  showTeam = false;
 		bool  showDrones = true;
 		bool  hideDead = true;
+		bool  visibleOnly = false;
+		bool  dimOccluded = false;
 		float maxDistance = 300.0f;
 	} players;
 
 	struct Aim {
 		bool  enabled = false;
 		bool  ignoreTeam = true;
+		bool  visibleOnly = false;
 		float fov = 150.0f;
 		float smooth = 5.0f;
 		int   method = 0;
@@ -56,10 +59,10 @@ struct EspDiag {
 	int total = 0, drawn = 0;
 	int noPawn = 0, self = 0, noHealth = 0, dead = 0, teamFiltered = 0;
 	int tooFar = 0, offScreen = 0, noPosition = 0;
-	int drones = 0, droneFiltered = 0;
+	int drones = 0, droneFiltered = 0, occluded = 0;
 	void reset() {
 		total = drawn = noPawn = self = noHealth = dead = teamFiltered = 0;
-		tooFar = offScreen = noPosition = drones = droneFiltered = 0;
+		tooFar = offScreen = noPosition = drones = droneFiltered = occluded = 0;
 	}
 } g_Diag;
 
@@ -314,6 +317,8 @@ static void RenderESP() {
 
 	const ImU32 colEnemy = IM_COL32(255, 60, 60, 255);
 	const ImU32 colTeam = IM_COL32(80, 150, 255, 255);
+	const ImU32 colOccluded = IM_COL32(150, 150, 150, 200);
+	const bool  visWanted = g_Cfg.players.visibleOnly || g_Cfg.players.dimOccluded;
 	const float maxDistCm = g_Cfg.players.maxDistance * 100.0f;
 
 	for (int i = 0; i < count; ++i) {
@@ -370,7 +375,16 @@ static void RenderESP() {
 			continue;
 		}
 
-		const ImU32 col = sameTeam ? colTeam : colEnemy;
+		bool visible = true;
+		if (visWanted) {
+			visible = VisCheck::IsVisible(pawn);
+			if (!visible) {
+				g_Diag.occluded++;
+				if (g_Cfg.players.visibleOnly) continue;
+			}
+		}
+
+		const ImU32 col = !visible ? colOccluded : (sameTeam ? colTeam : colEnemy);
 		g_Diag.drawn++;
 
 		if (g_Cfg.players.boxMode == BOX_FULL)         Render::Box(tl, br, col);
@@ -463,7 +477,7 @@ static void RunAimbot() {
 	double bestDist = activeFov;
 	fvector bestTarget(0, 0, 0);
 	bool found = false;
-	int skipTeam = 0, skipDead = 0, skipOff = 0, skipRead = 0, skipDrone = 0;
+	int skipTeam = 0, skipDead = 0, skipOff = 0, skipRead = 0, skipDrone = 0, skipVis = 0;
 
 	for (int i = 0; i < count; ++i) {
 		uintptr_t ps = 0, pawn = 0;
@@ -480,6 +494,8 @@ static void RunAimbot() {
 
 		float hp = 0.0f, maxHp = 100.0f;
 		if (ReadHealth(pawn, hp, maxHp) && hp <= 0.0f) { skipDead++; continue; }
+
+		if (g_Cfg.aim.visibleOnly && !VisCheck::IsVisible(pawn)) { skipVis++; continue; }
 
 		PawnPose pose;
 		if (!ReadPawnPose(pawn, pose)) { skipRead++; continue; }
@@ -504,8 +520,8 @@ static void RunAimbot() {
 	}
 
 	if (!found) {
-		sprintf_s(g_AimLog, "Aimbot: no target | total=%d dead=%d team=%d drone=%d offscreen=%d readfail=%d",
-		          count, skipDead, skipTeam, skipDrone, skipOff, skipRead);
+		sprintf_s(g_AimLog, "Aimbot: no target | total=%d dead=%d team=%d drone=%d vis=%d offscreen=%d readfail=%d",
+		          count, skipDead, skipTeam, skipDrone, skipVis, skipOff, skipRead);
 		return;
 	}
 
@@ -637,6 +653,16 @@ static void RenderMenu() {
 		UiToggle("Hide Dead", &g_Cfg.players.hideDead,
 		         "Skips players whose health is 0. Players whose health cannot be read\n"
 		         "are still shown, so a broken offset does not hide everyone.");
+		UiToggle("Visible Only", &g_Cfg.players.visibleOnly,
+		         "Line-of-sight check from the camera to each player; occluded players\n"
+		         "are skipped. The engine's own AController::LineOfSightTo is called\n"
+		         "through ProcessEvent. If it cannot be resolved (see the Debug tab)\n"
+		         "the filter stays inactive instead of hiding everyone.");
+		UiToggle("Dim Occluded", &g_Cfg.players.dimOccluded,
+		         "Draws occluded players in grey instead of hiding them.");
+		if ((g_Cfg.players.visibleOnly || g_Cfg.players.dimOccluded) && !VisCheck::Active())
+			ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f),
+			                   "Vischeck unavailable - players are not filtered.");
 		UiSlider("Max Distance", &g_Cfg.players.maxDistance, 10.0f, 1000.0f, "%.0f m");
 	}
 	else if (g_MenuSection == 1) {
@@ -671,6 +697,9 @@ static void RenderMenu() {
 		UiToggle("Ignore Teammates", &g_Cfg.aim.ignoreTeam,
 		         "Applies to both the aimbot and soft aim. Teams come from\n"
 		         "PlayerState::TeamId, the same source the ESP uses.");
+		UiToggle("Visible Only", &g_Cfg.aim.visibleOnly,
+		         "Only locks onto targets with an unobstructed line of sight from the\n"
+		         "camera, using the same check as the ESP filter.");
 		UiToggle("Draw FOV Circle", &g_Cfg.aim.drawFov,
 		         "White circle = aimbot FOV. Yellow circle = soft aim FOV.");
 		UiToggle("Draw Target Line", &g_Cfg.aim.drawTarget,
@@ -871,8 +900,9 @@ static void RenderMenu() {
 		UiGroup("ESP counters");
 		ImGui::Text("roster %d   drawn %d", g_Diag.total, g_Diag.drawn);
 		ImGui::Text("noPawn %d  self %d  team %d  dead %d", g_Diag.noPawn, g_Diag.self, g_Diag.teamFiltered, g_Diag.dead);
-		ImGui::Text("noHealth %d  noPos %d  tooFar %d  offScreen %d",
-		            g_Diag.noHealth, g_Diag.noPosition, g_Diag.tooFar, g_Diag.offScreen);
+		ImGui::Text("noHealth %d  noPos %d  tooFar %d  offScreen %d  occluded %d",
+		            g_Diag.noHealth, g_Diag.noPosition, g_Diag.tooFar, g_Diag.offScreen,
+		            g_Diag.occluded);
 		ImGui::Text("drones %d  droneFiltered %d", g_Diag.drones, g_Diag.droneFiltered);
 
 		UiGroup("Bone counters");
@@ -894,6 +924,17 @@ static void RenderMenu() {
 			}
 			ImGui::Text("named %d/%d   body bones (sum) %d", named, total, core);
 		}
+
+		UiGroup("Vischeck");
+		ImGui::TextWrapped("%s", VisCheck::g_State.status);
+		ImGui::Text("queries %d   visible %d   hidden %d   cached %d",
+		            VisCheck::g_State.calls, VisCheck::g_State.visible,
+		            VisCheck::g_State.hidden, (int)VisCheck::g_Cache.size());
+		ImGui::Text("attempts %d / %d", VisCheck::g_State.tries, VisCheck::kMaxTries);
+		ImGui::TextWrapped("A line-of-sight trace is run from your camera to each tracked "
+		                   "player through the engine's own LineOfSightTo function. "
+		                   "Results are cached for a few frames. Unresolved or faulting "
+		                   "checks count as visible, so the ESP never silently hides players.");
 	}
 
 	if (g_UiFilter[0] && g_UiShown == 0 && g_MenuSection != 3 && g_MenuSection != 4)
@@ -917,6 +958,8 @@ void renderImGui() {
 		Names::Init();
 		isInitialized = true;
 	}
+
+	VisCheck::Resolve();
 
 	if (GetAsyncKeyState(VK_INSERT) & 1) {
 		isMenuVisible = !isMenuVisible;

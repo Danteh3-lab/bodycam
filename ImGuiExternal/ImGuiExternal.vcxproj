@@ -190,6 +190,7 @@
     <ClInclude Include="game_names.hpp" />
     <ClInclude Include="reader.hpp" />
     <ClInclude Include="vector.h" />
+    <ClInclude Include="vischeck.hpp" />
     <ClInclude Include="WorldToScreen.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

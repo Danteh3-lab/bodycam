@@ -65,6 +65,10 @@ namespace Offsets {
 		constexpr uintptr_t MinAlignment    = 0x5C;
 	}
 
+	namespace UField {
+		constexpr uintptr_t Next = 0x28; // UField* linked list walked via UStruct::Children
+	}
+
 	namespace UClass {
 		constexpr uintptr_t CastFlags            = 0xD8;
 		constexpr uintptr_t ClassDefaultObject   = 0x110;
@@ -232,6 +236,29 @@ namespace Offsets {
 		constexpr uintptr_t AddPitchInput = 0x3CB83C0;
 		constexpr uintptr_t AddRollInput  = 0x3CB8450;
 		constexpr uintptr_t AddYawInput   = 0x3CB85D0;
+	}
+
+	// ------------------------------------------------------------------------
+	// Reflection — [USED] (from vischeck.hpp). UObject::ProcessEvent is
+	// resolved by RVA (validated by prologue) or by vtable slot; UFunction and
+	// FProperty layouts drive the parameter block the function is called with.
+	// ------------------------------------------------------------------------
+	namespace Reflection {
+		constexpr uint64_t CPF_ReturnParm = 0x0000000000000400;
+		constexpr int      MaxClassDepth  = 64;   // SuperStruct chain walk
+		constexpr int      MaxFields      = 4096; // UField chain walk per class
+	}
+
+	// ------------------------------------------------------------------------
+	// Vischeck — [USED] (from vischeck.hpp). The UFunction is found by name on
+	// the local PlayerController's class hierarchy, so no RVA is needed for
+	// the function itself. Fallback is a render-state check.
+	// ------------------------------------------------------------------------
+	namespace VisCheck {
+		constexpr char  LineOfSightFn[]  = "LineOfSightTo";      // AController
+		constexpr char  RecentRenderFn[] = "WasRecentlyRendered"; // AActor fallback
+		constexpr DWORD CacheTtlMs       = 50;
+		constexpr float RenderTolerance  = 0.2f;
 	}
 
 	// ------------------------------------------------------------------------

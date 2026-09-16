@@ -8,6 +8,18 @@ enum offset {
 	uobject_name            = 0x18,
 	uobject_outer           = 0x20,
 
+	ustruct_super_struct    = 0x40,
+	ustruct_children        = 0x48,
+	ustruct_child_props     = 0x50,
+	ufield_next             = 0x28,
+	ffield_next             = 0x18,
+	ffield_name             = 0x20,
+	fprop_element_size      = 0x34,
+	fprop_flags             = 0x38,
+	fprop_offset            = 0x44,
+	fprop_bool_byte         = 0x49,
+	fprop_bool_mask         = 0x4B,
+
 	persistent_level        = 0x30,
 	game_state              = 0x160,
 	game_instance           = 0x1D8,

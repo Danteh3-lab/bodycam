@@ -23,6 +23,10 @@ symbols (world anchor, name pool, input functions), and a LoadLibrary-based inje
 - **Internal overlay** — a transparent DirectX 9 (D3D9Ex) window with an ImGui menu,
   box/skeleton/health/distance ESP, and an aim-assist demo that moves the view through the
   engine's own `AddYawInput`/`AddPitchInput` functions (verified by signature).
+- **Visibility check** — the ESP filter and aim target selection can ignore occluded
+  players. `AController::LineOfSightTo` is resolved by name from the local controller's
+  class hierarchy and invoked through `UObject::ProcessEvent` with a parameter block built
+  from the function's reflected properties (`AActor::WasRecentlyRendered` as fallback).
 - **Injection** — a small x64 loader that maps the DLL into the target process via
   `CreateRemoteThread` + `LoadLibraryA`.
 
@@ -35,6 +39,7 @@ ImGuiExternal/             The internal cheat (DLL)
   reader.hpp               SEH-guarded in-process memory reads/writes, world scan
   game_names.hpp           FNamePool resolution + signature scan
   game_calls.hpp           AddPitch/AddYawInput resolution + calibration
+  vischeck.hpp             Line-of-sight query via ProcessEvent (ESP/aim filter)
   esp_render.hpp           Rendering helpers
   WorldToScreen.hpp        Projection
   HookFunc.h               Game offsets (UObject, world chain, components, …)

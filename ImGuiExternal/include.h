@@ -36,6 +36,7 @@ inline DWORD64 Uworld = 0;
 #include "game_calls.hpp"
 #include "esp_render.hpp"
 #include "WorldToScreen.hpp"
+#include "vischeck.hpp"
 #include "Overlay.hpp"
 
 #define P(Addr,bytes,size) hooks->Patch((BYTE*)Addr,(BYTE*)bytes,size)
