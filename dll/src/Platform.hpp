@@ -1,5 +1,5 @@
 // ============================================================================
-// Platform — small Win32 helpers: NOVA data paths, animation preferences,
+// Platform — small Win32 helpers: MYTHOS data paths, animation preferences,
 // edge-triggered key polling and UTF-8 conversion.
 // ============================================================================
 #pragma once
@@ -7,10 +7,11 @@
 #include <filesystem>
 #include <string>
 
-namespace nova_host::platform {
+namespace mythos_host::platform {
 
 [[nodiscard]] std::filesystem::path LocalAppDataDirectory();
 [[nodiscard]] std::filesystem::path SettingsPath();
+[[nodiscard]] std::filesystem::path LegacySettingsPath();
 [[nodiscard]] std::filesystem::path LogDirectory();
 
 // Windows client-area animation preference (SPI_GETCLIENTAREAANIMATION).
@@ -24,4 +25,4 @@ namespace nova_host::platform {
 
 [[nodiscard]] uint64_t MonotonicMilliseconds();
 
-} // namespace nova_host::platform
+} // namespace mythos_host::platform

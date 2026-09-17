@@ -1,8 +1,8 @@
-#include "nova/Projection.hpp"
+#include "mythos/Projection.hpp"
 
 #include <cmath>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
@@ -99,4 +99,4 @@ bool ProjectWorldToScreen(const CameraView& view,
 	return true;
 }
 
-} // namespace nova
+} // namespace mythos

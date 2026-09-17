@@ -1,14 +1,14 @@
 // ============================================================================
-// NOVA.Loader.exe — explicit, minimal-rights DLL loader.
+// MYTHOS.Loader.exe — explicit, minimal-rights DLL loader.
 //
-// Usage: NOVA.Loader.exe [--dll <path>] [--pid <id>] [--help]
+// Usage: MYTHOS.Loader.exe [--dll <path>] [--pid <id>] [--help]
 //
 // Validation before injection:
 //   * DLL exists and is an AMD64 image
 //   * target process is x64
 //   * known Steam build matches when discoverable (otherwise proceed; the DLL
 //     gates ESP on world invariants)
-//   * NOVA.dll is not already loaded
+//   * MYTHOS.dll or legacy NOVA.dll is not already loaded
 // Injection uses the minimum required access rights and LoadLibraryW. There is
 // no debug-privilege escalation, no process-all-access, and no stealth
 // behavior.
@@ -43,7 +43,8 @@ enum LoaderExitCode : int {
 };
 
 constexpr DWORD kInjectTimeoutMs = 30'000;
-const wchar_t* kDllName = L"NOVA.dll";
+const wchar_t* kDllName = L"MYTHOS.dll";
+const wchar_t* kLegacyDllName = L"NOVA.dll";
 
 std::wstring ExecutableDirectory() {
 	std::vector<wchar_t> buffer(512);
@@ -301,8 +302,8 @@ InjectionResult Inject(HANDLE process, const std::wstring& dllPath) {
 }
 
 void PrintUsage() {
-	wprintf(L"NOVA loader\n");
-	wprintf(L"  usage: NOVA.Loader.exe [--dll <path>] [--pid <id>]\n");
+	wprintf(L"MYTHOS loader\n");
+	wprintf(L"  usage: MYTHOS.Loader.exe [--dll <path>] [--pid <id>]\n");
 	wprintf(L"  default DLL: %ls (next to this loader)\n", kDllName);
 	wprintf(L"  default target: %hs\n", Offsets::kTargetProcess);
 }
@@ -331,7 +332,7 @@ int RunLoader(int argc, wchar_t** argv) {
 	}
 	dllPath = MakeAbsolute(dllPath);
 
-	wprintf(L"NOVA loader\n  dll    : %ls\n", dllPath.c_str());
+	wprintf(L"MYTHOS loader\n  dll    : %ls\n", dllPath.c_str());
 
 	const DWORD attributes = GetFileAttributesW(dllPath.c_str());
 	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
@@ -358,9 +359,9 @@ int RunLoader(int argc, wchar_t** argv) {
 	wprintf(L"  target : PID %lu\n", pid);
 
 	// Already-loaded check first (uses a toolhelp snapshot, no strong rights).
-	if (ModuleAlreadyLoaded(pid, kDllName)) {
-		wprintf(L"[i] NOVA.dll is already loaded in that process; nothing to do. "
-		        L"Restart the game to load NOVA again.\n");
+	if (ModuleAlreadyLoaded(pid, kDllName) || ModuleAlreadyLoaded(pid, kLegacyDllName)) {
+		wprintf(L"[i] MYTHOS.dll or legacy NOVA.dll is already loaded in that process; nothing to do. "
+		        L"Restart the game to load MYTHOS again.\n");
 		return kAlreadyLoaded;
 	}
 
@@ -375,7 +376,7 @@ int RunLoader(int argc, wchar_t** argv) {
 	}
 
 	if (!TargetIsX64(process)) {
-		wprintf(L"[!] Target process is not x64; NOVA requires the x64 build.\n");
+		wprintf(L"[!] Target process is not x64; MYTHOS requires the x64 build.\n");
 		CloseHandle(process);
 		return kTargetArchitectureMismatch;
 	}
@@ -433,7 +434,7 @@ int RunLoader(int argc, wchar_t** argv) {
 	}
 
 	wprintf(L"[+] %ls\n", result.message.c_str());
-	wprintf(L"    INSERT toggles the NOVA menu, DELETE stops NOVA "
+	wprintf(L"    INSERT toggles the MYTHOS menu, DELETE stops MYTHOS "
 	        L"(restart the game to load it again).\n");
 	return kSuccess;
 }

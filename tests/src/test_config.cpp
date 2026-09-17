@@ -1,6 +1,6 @@
 #include "test_framework.h"
 
-#include "nova/Config.hpp"
+#include "mythos/Config.hpp"
 
 #include <cmath>
 #include <filesystem>
@@ -11,7 +11,7 @@ namespace {
 
 std::filesystem::path MakeTempDirectory(const char* name) {
 	const std::filesystem::path directory =
-		std::filesystem::temp_directory_path() / "nova-tests" / name;
+		std::filesystem::temp_directory_path() / "mythos-tests" / name;
 	std::error_code code;
 	std::filesystem::remove_all(directory, code);
 	std::filesystem::create_directories(directory, code);
@@ -26,11 +26,11 @@ std::string ReadFile(const std::filesystem::path& path) {
 
 } // namespace
 
-NOVA_TEST(ConfigRoundTrip) {
-	nova::OverlayConfig config;
+MYTHOS_TEST(ConfigRoundTrip) {
+	mythos::OverlayConfig config;
 	config.espEnabled = true;
 	config.reducedMotion = true;
-	config.players.boxMode = static_cast<int>(nova::BoxMode::Corners);
+	config.players.boxMode = static_cast<int>(mythos::BoxMode::Corners);
 	config.players.headDot = true;
 	config.players.maxDistance = 250.0f;
 	config.visuals.textScale = 1.25f;
@@ -40,14 +40,14 @@ NOVA_TEST(ConfigRoundTrip) {
 	config.menu.y = 50.0f;
 	config.menu.section = 3;
 
-	const std::string text = nova::SerializeOverlayConfig(config);
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig loaded = nova::DeserializeOverlayConfig(text, report);
+	const std::string text = mythos::SerializeOverlayConfig(config);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig loaded = mythos::DeserializeOverlayConfig(text, report);
 
-	CHECK(report.source == nova::ConfigSource::Loaded);
+	CHECK(report.source == mythos::ConfigSource::Loaded);
 	CHECK_EQ(loaded.espEnabled, true);
 	CHECK_EQ(loaded.reducedMotion, true);
-	CHECK_EQ(loaded.players.boxMode, static_cast<int>(nova::BoxMode::Corners));
+	CHECK_EQ(loaded.players.boxMode, static_cast<int>(mythos::BoxMode::Corners));
 	CHECK_EQ(loaded.players.headDot, true);
 	CHECK(std::abs(loaded.players.maxDistance - 250.0f) < 1e-3);
 	CHECK(std::abs(loaded.visuals.textScale - 1.25f) < 1e-3);
@@ -57,8 +57,8 @@ NOVA_TEST(ConfigRoundTrip) {
 	CHECK_EQ(loaded.menu.section, 3);
 }
 
-NOVA_TEST(ConfigClampsInvalidValues) {
-	nova::OverlayConfig config;
+MYTHOS_TEST(ConfigClampsInvalidValues) {
+	mythos::OverlayConfig config;
 	config.players.boxMode = 99;
 	config.players.boxScale = -5.0f;
 	config.players.headDotSize = 0.0f;
@@ -72,9 +72,9 @@ NOVA_TEST(ConfigClampsInvalidValues) {
 	config.menu.x = -500.0f;
 	config.menu.y = 123.0f;
 
-	nova::ClampOverlayConfig(config);
+	mythos::ClampOverlayConfig(config);
 
-	CHECK_EQ(config.players.boxMode, static_cast<int>(nova::BoxMode::Full));
+	CHECK_EQ(config.players.boxMode, static_cast<int>(mythos::BoxMode::Full));
 	CHECK(std::abs(config.players.boxScale - 0.5f) < 1e-3);
 	CHECK(std::abs(config.players.headDotSize - 1.0f) < 1e-3);
 	CHECK(std::abs(config.players.maxDistance - 1000.0f) < 1e-3);
@@ -88,8 +88,8 @@ NOVA_TEST(ConfigClampsInvalidValues) {
 	CHECK(config.menu.y < 0.0f);
 }
 
-NOVA_TEST(ConfigAimRoundTripAndClamps) {
-	nova::OverlayConfig config;
+MYTHOS_TEST(ConfigAimRoundTripAndClamps) {
+	mythos::OverlayConfig config;
 	config.aim.enabled = true;
 	config.aim.softAim = true;
 	config.aim.visibleOnly = true;
@@ -101,11 +101,11 @@ NOVA_TEST(ConfigAimRoundTripAndClamps) {
 	config.players.visibleOnly = true;
 	config.unsafeEngineCalls = true;
 
-	const std::string text = nova::SerializeOverlayConfig(config);
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig loaded = nova::DeserializeOverlayConfig(text, report);
+	const std::string text = mythos::SerializeOverlayConfig(config);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig loaded = mythos::DeserializeOverlayConfig(text, report);
 
-	CHECK(report.source == nova::ConfigSource::Loaded);
+	CHECK(report.source == mythos::ConfigSource::Loaded);
 	CHECK_EQ(loaded.aim.enabled, true);
 	CHECK_EQ(loaded.aim.softAim, true);
 	CHECK_EQ(loaded.aim.visibleOnly, true);
@@ -119,14 +119,14 @@ NOVA_TEST(ConfigAimRoundTripAndClamps) {
 	CHECK_EQ(loaded.unsafeEngineCalls, true);
 
 	// Visibility modes are mutually exclusive: visible-only wins on load too.
-	nova::OverlayConfig both;
+	mythos::OverlayConfig both;
 	both.players.visibleOnly = true;
 	both.players.dimOccluded = true;
-	nova::ClampOverlayConfig(both);
+	mythos::ClampOverlayConfig(both);
 	CHECK_EQ(both.players.visibleOnly, true);
 	CHECK_EQ(both.players.dimOccluded, false);
 
-	nova::OverlayConfig clamped;
+	mythos::OverlayConfig clamped;
 	clamped.aim.method = 9;
 	clamped.aim.boneMode = 9;
 	clamped.aim.fov = 1.0f;
@@ -134,7 +134,7 @@ NOVA_TEST(ConfigAimRoundTripAndClamps) {
 	clamped.aim.maxStep = 999.0f;
 	clamped.aim.softFov = 1.0f;
 	clamped.aim.softSmooth = 99.0f;
-	nova::ClampOverlayConfig(clamped);
+	mythos::ClampOverlayConfig(clamped);
 	CHECK_EQ(clamped.aim.method, 1);
 	CHECK_EQ(clamped.aim.boneMode, 0);
 	CHECK(std::abs(clamped.aim.fov - 10.0f) < 1e-3);
@@ -144,7 +144,7 @@ NOVA_TEST(ConfigAimRoundTripAndClamps) {
 	CHECK(std::abs(clamped.aim.softSmooth - 10.0f) < 1e-3);
 }
 
-NOVA_TEST(ConfigCorruptionCreatesBackup) {
+MYTHOS_TEST(ConfigCorruptionCreatesBackup) {
 	const std::filesystem::path directory = MakeTempDirectory("corrupt");
 	const std::filesystem::path path = directory / "settings.json";
 	{
@@ -152,10 +152,10 @@ NOVA_TEST(ConfigCorruptionCreatesBackup) {
 		stream << "{ this is not json";
 	}
 
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::LoadOverlayConfig(path, &report);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::LoadOverlayConfig(path, &report);
 
-	CHECK(report.source == nova::ConfigSource::RecoveredFromCorruption);
+	CHECK(report.source == mythos::ConfigSource::RecoveredFromCorruption);
 	CHECK(!report.backupPath.empty());
 	CHECK(std::filesystem::exists(report.backupPath));
 	CHECK(!std::filesystem::exists(path));
@@ -166,7 +166,7 @@ NOVA_TEST(ConfigCorruptionCreatesBackup) {
 	CHECK(backup.find("this is not json") != std::string::npos);
 }
 
-NOVA_TEST(ConfigTypeCorruptionCreatesBackup) {
+MYTHOS_TEST(ConfigTypeCorruptionCreatesBackup) {
 	const std::filesystem::path directory = MakeTempDirectory("type-corrupt");
 	const std::filesystem::path path = directory / "settings.json";
 	{
@@ -175,10 +175,10 @@ NOVA_TEST(ConfigTypeCorruptionCreatesBackup) {
 		stream << R"({"schema_version":1,"esp_enabled":"yes","players":{"box_scale":"big"}})";
 	}
 
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::LoadOverlayConfig(path, &report);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::LoadOverlayConfig(path, &report);
 
-	CHECK(report.source == nova::ConfigSource::RecoveredFromCorruption);
+	CHECK(report.source == mythos::ConfigSource::RecoveredFromCorruption);
 	CHECK(!report.backupPath.empty());
 	CHECK(std::filesystem::exists(report.backupPath));
 	CHECK(!std::filesystem::exists(path));
@@ -186,17 +186,17 @@ NOVA_TEST(ConfigTypeCorruptionCreatesBackup) {
 	CHECK(std::abs(config.players.boxScale - 1.0f) < 1e-3);
 }
 
-NOVA_TEST(ConfigTypeCorruptionNeverThrows) {
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::DeserializeOverlayConfig(
+MYTHOS_TEST(ConfigTypeCorruptionNeverThrows) {
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::DeserializeOverlayConfig(
 		R"({"schema_version":1,"esp_enabled":42,"reduced_motion":[],"menu":{"section":"x"}})",
 		report);
-	CHECK(report.source == nova::ConfigSource::Defaults);
+	CHECK(report.source == mythos::ConfigSource::Defaults);
 	CHECK_EQ(config.espEnabled, false);
 	CHECK_EQ(config.menu.section, 0);
 }
 
-NOVA_TEST(ConfigFutureSchemaIsPreserved) {
+MYTHOS_TEST(ConfigFutureSchemaIsPreserved) {
 	const std::filesystem::path directory = MakeTempDirectory("future-schema");
 	const std::filesystem::path path = directory / "settings.json";
 	{
@@ -204,60 +204,152 @@ NOVA_TEST(ConfigFutureSchemaIsPreserved) {
 		stream << R"({"schema_version":99,"esp_enabled":true})";
 	}
 
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::LoadOverlayConfig(path, &report);
-	CHECK(report.source == nova::ConfigSource::RecoveredFromCorruption);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::LoadOverlayConfig(path, &report);
+	CHECK(report.source == mythos::ConfigSource::RecoveredFromCorruption);
 	CHECK(std::filesystem::exists(report.backupPath));
 	CHECK_EQ(config.espEnabled, false);
 }
 
-NOVA_TEST(ConfigMigratesOldSchema) {
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::DeserializeOverlayConfig(
+MYTHOS_TEST(ConfigMigratesOldSchema) {
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::DeserializeOverlayConfig(
 		R"({"schema_version":0,"esp_enabled":true,"players":{"name":false}})", report);
 
-	CHECK(report.source == nova::ConfigSource::Migrated);
+	CHECK(report.source == mythos::ConfigSource::Migrated);
 	CHECK_EQ(config.espEnabled, true);
 	CHECK_EQ(config.players.name, false);
-	CHECK_EQ(config.schemaVersion, nova::kConfigSchemaVersion);
+	CHECK_EQ(config.schemaVersion, mythos::kConfigSchemaVersion);
 }
 
-NOVA_TEST(ConfigRejectsFutureSchema) {
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config = nova::DeserializeOverlayConfig(
+MYTHOS_TEST(ConfigRejectsFutureSchema) {
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config = mythos::DeserializeOverlayConfig(
 		R"({"schema_version":99,"esp_enabled":true})", report);
 
-	CHECK(report.source == nova::ConfigSource::Defaults);
+	CHECK(report.source == mythos::ConfigSource::Defaults);
 	CHECK_EQ(config.espEnabled, false);
 }
 
-NOVA_TEST(ConfigAtomicSaveAndLoad) {
+MYTHOS_TEST(ConfigAtomicSaveAndLoad) {
 	const std::filesystem::path directory = MakeTempDirectory("save");
 	const std::filesystem::path path = directory / "settings.json";
 
-	nova::OverlayConfig config;
+	mythos::OverlayConfig config;
 	config.espEnabled = true;
 	config.players.skeleton = true;
 	config.players.maxDistance = 123.0f;
 
 	std::string error;
-	CHECK(nova::SaveOverlayConfig(path, config, &error));
+	CHECK(mythos::SaveOverlayConfig(path, config, &error));
 	CHECK(std::filesystem::exists(path));
 	CHECK(!std::filesystem::exists(path.string() + ".tmp"));
 
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig loaded = nova::LoadOverlayConfig(path, &report);
-	CHECK(report.source == nova::ConfigSource::Loaded);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig loaded = mythos::LoadOverlayConfig(path, &report);
+	CHECK(report.source == mythos::ConfigSource::Loaded);
 	CHECK_EQ(loaded.espEnabled, true);
 	CHECK_EQ(loaded.players.skeleton, true);
 	CHECK(std::abs(loaded.players.maxDistance - 123.0f) < 1e-3);
 }
 
-NOVA_TEST(ConfigMissingFileYieldsDefaults) {
+MYTHOS_TEST(ConfigMissingFileYieldsDefaults) {
 	const std::filesystem::path directory = MakeTempDirectory("missing");
-	nova::ConfigLoadReport report;
-	const nova::OverlayConfig config =
-		nova::LoadOverlayConfig(directory / "does-not-exist.json", &report);
-	CHECK(report.source == nova::ConfigSource::Defaults);
-	CHECK_EQ(config.schemaVersion, nova::kConfigSchemaVersion);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig config =
+		mythos::LoadOverlayConfig(directory / "does-not-exist.json", &report);
+	CHECK(report.source == mythos::ConfigSource::Defaults);
+	CHECK_EQ(config.schemaVersion, mythos::kConfigSchemaVersion);
+}
+
+MYTHOS_TEST(ConfigImportValidLegacyPreservesSource) {
+	const std::filesystem::path directory = MakeTempDirectory("import-valid");
+	const std::filesystem::path legacy = directory / "NOVA" / "settings.json";
+	const std::filesystem::path destination = directory / "MYTHOS" / "settings.json";
+	std::error_code code;
+	std::filesystem::create_directories(legacy.parent_path(), code);
+	const std::string original = R"({"schema_version":1,"esp_enabled":true,"players":{"name":false}})";
+	{
+		std::ofstream stream(legacy, std::ios::binary);
+		stream << original;
+	}
+
+	std::string detail;
+	CHECK(mythos::ImportOverlayConfigIfMissing(legacy, destination, &detail) ==
+	      mythos::ConfigImportStatus::Imported);
+	CHECK(std::filesystem::exists(destination));
+	CHECK_EQ(ReadFile(legacy), original);
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig imported = mythos::LoadOverlayConfig(destination, &report);
+	CHECK(report.source == mythos::ConfigSource::Loaded);
+	CHECK_EQ(imported.espEnabled, true);
+	CHECK_EQ(imported.players.name, false);
+	CHECK(!detail.empty());
+}
+
+MYTHOS_TEST(ConfigImportExistingDestinationWins) {
+	const std::filesystem::path directory = MakeTempDirectory("import-existing");
+	const std::filesystem::path legacy = directory / "NOVA" / "settings.json";
+	const std::filesystem::path destination = directory / "MYTHOS" / "settings.json";
+	std::error_code code;
+	std::filesystem::create_directories(legacy.parent_path(), code);
+	mythos::OverlayConfig oldConfig;
+	oldConfig.espEnabled = true;
+	CHECK(mythos::SaveOverlayConfig(legacy, oldConfig));
+	mythos::OverlayConfig current;
+	current.players.skeleton = true;
+	CHECK(mythos::SaveOverlayConfig(destination, current));
+	const std::string before = ReadFile(destination);
+
+	CHECK(mythos::ImportOverlayConfigIfMissing(legacy, destination) ==
+	      mythos::ConfigImportStatus::NotNeeded);
+	CHECK_EQ(ReadFile(destination), before);
+}
+
+MYTHOS_TEST(ConfigImportMissingLegacyIsNotNeeded) {
+	const std::filesystem::path directory = MakeTempDirectory("import-missing");
+	const std::filesystem::path destination = directory / "MYTHOS" / "settings.json";
+	CHECK(mythos::ImportOverlayConfigIfMissing(directory / "NOVA" / "settings.json", destination) ==
+	      mythos::ConfigImportStatus::NotNeeded);
+	CHECK(!std::filesystem::exists(destination));
+}
+
+MYTHOS_TEST(ConfigImportCorruptLegacyDoesNotMutateSource) {
+	const std::filesystem::path directory = MakeTempDirectory("import-corrupt");
+	const std::filesystem::path legacy = directory / "NOVA" / "settings.json";
+	const std::filesystem::path destination = directory / "MYTHOS" / "settings.json";
+	std::error_code code;
+	std::filesystem::create_directories(legacy.parent_path(), code);
+	const std::string original = "{not valid json";
+	{
+		std::ofstream stream(legacy, std::ios::binary);
+		stream << original;
+	}
+	std::string detail;
+	CHECK(mythos::ImportOverlayConfigIfMissing(legacy, destination, &detail) ==
+	      mythos::ConfigImportStatus::InvalidSource);
+	CHECK(!std::filesystem::exists(destination));
+	CHECK_EQ(ReadFile(legacy), original);
+	CHECK(!detail.empty());
+}
+
+MYTHOS_TEST(ConfigImportIsAtomicAndMigratesSchema) {
+	const std::filesystem::path directory = MakeTempDirectory("import-migrate");
+	const std::filesystem::path legacy = directory / "NOVA" / "settings.json";
+	const std::filesystem::path destination = directory / "MYTHOS" / "settings.json";
+	std::error_code code;
+	std::filesystem::create_directories(legacy.parent_path(), code);
+	{
+		std::ofstream stream(legacy, std::ios::binary);
+		stream << R"({"schema_version":0,"esp_enabled":true,"aim":{"fov":222}})";
+	}
+	CHECK(mythos::ImportOverlayConfigIfMissing(legacy, destination) ==
+	      mythos::ConfigImportStatus::Imported);
+	CHECK(std::filesystem::exists(destination));
+	CHECK(!std::filesystem::exists(destination.string() + ".tmp"));
+	mythos::ConfigLoadReport report;
+	const mythos::OverlayConfig imported = mythos::LoadOverlayConfig(destination, &report);
+	CHECK(report.source == mythos::ConfigSource::Loaded);
+	CHECK_EQ(imported.espEnabled, true);
+	CHECK(std::abs(imported.aim.fov - 222.0f) < 1e-3);
 }

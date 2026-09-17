@@ -3,11 +3,11 @@
 // Kept in core so it is unit-testable without a renderer or a game.
 // ============================================================================
 #pragma once
-#include "nova/UnrealTypes.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <vector>
 
-namespace nova {
+namespace mythos {
 
 struct BoxRect {
 	double left = 0.0;
@@ -38,4 +38,4 @@ void ScaleBox(BoxRect& box, double scale);
 struct Color4 { float r = 1.0f; float g = 1.0f; float b = 1.0f; float a = 1.0f; };
 [[nodiscard]] Color4 HealthColor(float percent);
 
-} // namespace nova
+} // namespace mythos

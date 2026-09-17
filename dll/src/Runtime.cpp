@@ -3,7 +3,7 @@
 #include "Platform.hpp"
 
 #include "Offsets.hpp"
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <imgui.h>
 
@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 constexpr uint64_t kWorkerIntervalMs = 16;   // ~60 Hz sampling
@@ -90,8 +90,8 @@ void Runtime::Shutdown() noexcept {
 	} catch (...) {
 	}
 	try {
-		nova::LogInfo("NOVA stopped (module pinned; restart the game to inject again)");
-		nova::Logger::Instance().Close();
+		mythos::LogInfo("MYTHOS stopped (module pinned; restart the game to inject again)");
+		mythos::Logger::Instance().Close();
 	} catch (...) {
 	}
 }
@@ -103,8 +103,8 @@ HWND Runtime::FindTargetWindow(DWORD processId) {
 	return search.best;
 }
 
-nova::CaptureSettings Runtime::ToCaptureSettings(const nova::OverlayConfig& config) {
-	nova::CaptureSettings capture;
+mythos::CaptureSettings Runtime::ToCaptureSettings(const mythos::OverlayConfig& config) {
+	mythos::CaptureSettings capture;
 	capture.name = config.players.name;
 	capture.health = config.players.health;
 	capture.distance = config.players.distance;
@@ -124,11 +124,11 @@ nova::CaptureSettings Runtime::ToCaptureSettings(const nova::OverlayConfig& conf
 	return capture;
 }
 
-nova::RuntimeState Runtime::EvaluateState(const nova::WorldContext& world,
-                                          const nova::GameSnapshot& snapshot) const {
-	if (!world.valid) return nova::RuntimeState::Resolving;
+mythos::RuntimeState Runtime::EvaluateState(const mythos::WorldContext& world,
+                                          const mythos::GameSnapshot& snapshot) const {
+	if (!world.valid) return mythos::RuntimeState::Resolving;
 	const bool ready = world.proven && names_->ready() && snapshot.valid && snapshot.camera.valid;
-	return ready ? nova::RuntimeState::Ready : nova::RuntimeState::Resolving;
+	return ready ? mythos::RuntimeState::Ready : mythos::RuntimeState::Resolving;
 }
 
 void Runtime::PublishFrame(PublishedFrame frame) {
@@ -159,25 +159,25 @@ int Runtime::Run(HMODULE module) {
 
 	identity_ = QueryBuildIdentity();
 
-	nova::Logger::Instance().Open(platform::LogDirectory(), identity_.fingerprint);
-	nova::LogInfo("NOVA starting");
-	nova::LogInfo(identity_.fingerprint);
+	mythos::Logger::Instance().Open(platform::LogDirectory(), identity_.fingerprint);
+	mythos::LogInfo("MYTHOS starting");
+	mythos::LogInfo(identity_.fingerprint);
 
-	settings_.Initialize(platform::SettingsPath());
+	settings_.Initialize(platform::SettingsPath(), platform::LegacySettingsPath());
 
 	const std::wstring moduleName = platform::ToWide(Offsets::kGameModule);
 	if (!memory_.Attach(moduleName.c_str())) {
-		nova::LogError("game module not mapped; stopping");
+		mythos::LogError("game module not mapped; stopping");
 		return 1;
 	}
 	{
-		nova::SectionRange execSections[nova::kMaxSections];
-		nova::SectionRange dataSections[nova::kMaxSections];
-		const int execCount = memory_.sections(true, execSections, nova::kMaxSections);
-		const int dataCount = memory_.sections(false, dataSections, nova::kMaxSections);
+		mythos::SectionRange execSections[mythos::kMaxSections];
+		mythos::SectionRange dataSections[mythos::kMaxSections];
+		const int execCount = memory_.sections(true, execSections, mythos::kMaxSections);
+		const int dataCount = memory_.sections(false, dataSections, mythos::kMaxSections);
 		size_t dataBytes = 0;
 		for (int i = 0; i < dataCount; ++i) dataBytes += dataSections[i].size;
-		const nova::ModuleInfo moduleInfo = memory_.module();
+		const mythos::ModuleInfo moduleInfo = memory_.module();
 		char buffer[256] = {};
 		std::snprintf(buffer, sizeof(buffer),
 		              "module base=0x%llX size=0x%llX exec_sections=%d data_sections=%d "
@@ -185,24 +185,24 @@ int Runtime::Run(HMODULE module) {
 		              static_cast<unsigned long long>(moduleInfo.base),
 		              static_cast<unsigned long long>(moduleInfo.size), execCount, dataCount,
 		              dataBytes);
-		nova::LogInfo(buffer);
+		mythos::LogInfo(buffer);
 	}
 
-	names_ = std::make_unique<nova::NamePool>(memory_);
-	resolver_ = std::make_unique<nova::WorldResolver>(memory_, *names_);
+	names_ = std::make_unique<mythos::NamePool>(memory_);
+	resolver_ = std::make_unique<mythos::WorldResolver>(memory_, *names_);
 	gameThread_ = std::make_unique<GameThreadExecutor>();
 	engineCalls_ = std::make_unique<EngineCalls>(memory_, *gameThread_);
 	vischeck_ = std::make_unique<VisCheck>(memory_, *names_);
-	collector_ = std::make_unique<nova::SnapshotCollector>(memory_, *names_, vischeck_.get());
+	collector_ = std::make_unique<mythos::SnapshotCollector>(memory_, *names_, vischeck_.get());
 	aim_ = std::make_unique<AimController>(memory_, *engineCalls_);
 
 	if (identity_.knownMismatch()) {
 		resolver_->MarkOffsetsInvalid();
-		nova::LogError("known build mismatch: expected " +
+		mythos::LogError("known build mismatch: expected " +
 		               std::string(Offsets::kActiveProfile.knownFileVersion) + ", found " +
 		               identity_.fileVersion);
 	} else if (identity_.fileVersion.empty()) {
-		nova::LogInfo("build version not discoverable; ESP is gated on world invariants");
+		mythos::LogInfo("build version not discoverable; ESP is gated on world invariants");
 	}
 
 	// Publish a Starting frame so the UI has valid data immediately.
@@ -213,8 +213,8 @@ int Runtime::Run(HMODULE module) {
 			? std::string("Steam app ") + std::to_string(Offsets::kActiveProfile.steamAppId) +
 				" build " + std::to_string(Offsets::kActiveProfile.steamBuild)
 			: identity_.fileVersion;
-		initial.diagnostics.state = nova::RuntimeState::Starting;
-		initial.diagnostics.stage = nova::ResolveStage::NoModule;
+		initial.diagnostics.state = mythos::RuntimeState::Starting;
+		initial.diagnostics.stage = mythos::ResolveStage::NoModule;
 		PublishFrame(std::move(initial));
 	}
 
@@ -225,21 +225,21 @@ int Runtime::Run(HMODULE module) {
 		targetWindow_ = FindTargetWindow(processId);
 	}
 	if (targetWindow_ == nullptr) {
-		nova::LogError("no target window found within 15 s; stopping");
+		mythos::LogError("no target window found within 15 s; stopping");
 		return 2;
 	}
-	nova::LogInfo("target window found");
+	mythos::LogInfo("target window found");
 
 	// Prove the optional game-thread APC path before the AddYawInput/AddPitchInput
 	// method is offered. Direct rotation writes and the separately opted-in,
 	// reference-compatible vischeck do not depend on this probe.
 	gameThread_->Initialize(targetWindow_);
-	nova::LogInfo("game-thread path: " + gameThread_->message());
+	mythos::LogInfo("game-thread path: " + gameThread_->message());
 
 	overlay_ = std::make_unique<OverlayWindow>();
 	std::wstring error;
 	if (!overlay_->Initialize(targetWindow_, &error)) {
-		nova::LogError("overlay initialization failed: " + platform::ToUtf8(error));
+		mythos::LogError("overlay initialization failed: " + platform::ToUtf8(error));
 		overlay_.reset();
 		return 3;
 	}
@@ -261,15 +261,15 @@ void Runtime::MainLoop() {
 
 		if (overlay_ == nullptr) break;
 		if (overlay_->CloseRequested()) {
-			nova::LogInfo("overlay close requested");
+			mythos::LogInfo("overlay close requested");
 			break;
 		}
 		if (!IsWindow(targetWindow_)) {
-			nova::LogInfo("target window destroyed; stopping");
+			mythos::LogInfo("target window destroyed; stopping");
 			break;
 		}
 		if (platform::ConsumeKeyPress(Offsets::Keys::Unload)) {
-			nova::LogInfo("stop key pressed; NOVA stops (restart the game to inject again)");
+			mythos::LogInfo("stop key pressed; MYTHOS stops (restart the game to inject again)");
 			break;
 		}
 		if (platform::ConsumeKeyPress(Offsets::Keys::MenuToggle)) {
@@ -286,7 +286,7 @@ void Runtime::MainLoop() {
 		settings_.Tick(platform::MonotonicMilliseconds());
 
 		if (overlay_->RendererFailed()) {
-			nova::LogError("renderer failure; stopping");
+			mythos::LogError("renderer failure; stopping");
 			break;
 		}
 		if (!overlay_->SyncToTarget()) {
@@ -312,9 +312,9 @@ void Runtime::MainLoop() {
 		viewportWidth_ = width;
 		viewportHeight_ = height;
 
-		const nova::OverlayConfig config = settings_.Snapshot();
+		const mythos::OverlayConfig config = settings_.Snapshot();
 		if (config.espEnabled && frame.snapshot != nullptr && frame.snapshot->valid &&
-		    frame.diagnostics.state == nova::RuntimeState::Ready) {
+		    frame.diagnostics.state == mythos::RuntimeState::Ready) {
 			esp_.Draw(*frame.snapshot, config, width, height, renderBones_);
 		}
 		esp_.DrawAimOverlay(config, frame.aim, width, height);
@@ -337,13 +337,13 @@ void Runtime::WorkerLoop() {
 	} catch (const std::exception& exception) {
 		stop_ = true;
 		try {
-			nova::LogError(std::string("worker exception: ") + exception.what());
+			mythos::LogError(std::string("worker exception: ") + exception.what());
 		} catch (...) {
 		}
 	} catch (...) {
 		stop_ = true;
 		try {
-			nova::LogError("worker exception");
+			mythos::LogError("worker exception");
 		} catch (...) {
 		}
 	}
@@ -354,7 +354,7 @@ void Runtime::WorkerLoopImpl() {
 
 	while (!stop_) {
 		const uint64_t startMs = platform::MonotonicMilliseconds();
-		const nova::OverlayConfig config = settings_.Snapshot();
+		const mythos::OverlayConfig config = settings_.Snapshot();
 
 		if (!resolver_->offsetsInvalid()) {
 			const bool resolved = resolver_->Resolve();
@@ -376,16 +376,16 @@ void Runtime::WorkerLoopImpl() {
 			const std::string& vischeckMessage = vischeck_->status().message;
 			if (vischeckMessage != lastVischeckMessage_) {
 				lastVischeckMessage_ = vischeckMessage;
-				nova::LogInfo("vischeck: " + vischeckMessage);
+				mythos::LogInfo("vischeck: " + vischeckMessage);
 			}
 		}
 
-		nova::GameSnapshotPtr snapshot = collector_->Capture(
+		mythos::GameSnapshotPtr snapshot = collector_->Capture(
 			resolver_->context(), resolver_->stage(), ToCaptureSettings(config), ++sequence, startMs);
 
 		if (snapshot->valid && snapshot->camera.valid && resolver_->context().valid &&
 		    !resolver_->offsetsInvalid()) {
-			nova::ProjectionSettings projection;
+			mythos::ProjectionSettings projection;
 			projection.axisOverride = config.projection.axisOverride;
 			projection.fovScale = static_cast<double>(config.projection.fovScale);
 			projection.fallbackFov = config.projection.fallbackFov;
@@ -393,21 +393,21 @@ void Runtime::WorkerLoopImpl() {
 			           viewportWidth_.load(), viewportHeight_.load());
 		}
 
-		nova::RuntimeState state = EvaluateState(resolver_->context(), *snapshot);
-		if (resolver_->offsetsInvalid()) state = nova::RuntimeState::OffsetsInvalid;
+		mythos::RuntimeState state = EvaluateState(resolver_->context(), *snapshot);
+		if (resolver_->offsetsInvalid()) state = mythos::RuntimeState::OffsetsInvalid;
 
 		if (!stateLogged_ || state != lastLoggedState_) {
 			stateLogged_ = true;
 			lastLoggedState_ = state;
-			nova::LogInfo(std::string("state -> ") + nova::RuntimeStateName(state) +
-			              " | chain: " + nova::ResolveStageName(resolver_->stage()) +
+			mythos::LogInfo(std::string("state -> ") + mythos::RuntimeStateName(state) +
+			              " | chain: " + mythos::ResolveStageName(resolver_->stage()) +
 			              " | names: " + (names_->ready() ? "ready" : "pending") +
 			              " | roster=" + std::to_string(resolver_->context().playerCount) +
 			              " | proven: " + (resolver_->context().proven ? "yes" : "no"));
 		}
 		if (resolver_->context().valid && !worldLogged_) {
 			worldLogged_ = true;
-			const nova::ModuleInfo moduleInfo = memory_.module();
+			const mythos::ModuleInfo moduleInfo = memory_.module();
 			const uintptr_t anchorSlot = resolver_->diagnostics().anchorSlot;
 			const uintptr_t anchorRva =
 				(moduleInfo.base != 0 && anchorSlot >= moduleInfo.base)
@@ -424,41 +424,41 @@ void Runtime::WorkerLoopImpl() {
 			              resolver_->context().proven ? "yes" : "no",
 			              static_cast<unsigned long long>(anchorRva),
 			              resolver_->diagnostics().worldFromRva ? "known RVA" : "scan");
-			nova::LogInfo(buffer);
+			mythos::LogInfo(buffer);
 		}
 		if (names_->ready() && !namesLogged_) {
 			namesLogged_ = true;
 			char buffer[160] = {};
 			std::snprintf(buffer, sizeof(buffer), "name pool ready at 0x%llX",
 			              static_cast<unsigned long long>(names_->poolAddress()));
-			nova::LogInfo(buffer);
+			mythos::LogInfo(buffer);
 		}
 
-		if (state == nova::RuntimeState::Ready) {
+		if (state == mythos::RuntimeState::Ready) {
 			if (!everReady_) {
 				everReady_ = true;
-				nova::LogInfo("runtime ready: world, camera, roster and name pool validated");
+				mythos::LogInfo("runtime ready: world, camera, roster and name pool validated");
 			}
 			if (recovering_) {
 				recovering_ = false;
-				nova::LogInfo("recovered after map change");
+				mythos::LogInfo("recovered after map change");
 			}
 			notReadyStreak_ = 0;
-		} else if (state == nova::RuntimeState::Resolving && everReady_) {
+		} else if (state == mythos::RuntimeState::Resolving && everReady_) {
 			++notReadyStreak_;
 			if (notReadyStreak_ >= kRecoverAfterTicks && !recovering_) {
 				recovering_ = true;
 				collector_->ClearCaches();
 				resolver_->OnMapTransition();
 				vischeck_->OnWorldReset();
-				nova::LogInfo("world lost; clearing caches for map transition");
+				mythos::LogInfo("world lost; clearing caches for map transition");
 			}
 		}
 
-		const nova::ResolverDiagnostics& resolverDiagnostics = resolver_->diagnostics();
-		const nova::ModuleInfo module = memory_.module();
+		const mythos::ResolverDiagnostics& resolverDiagnostics = resolver_->diagnostics();
+		const mythos::ModuleInfo module = memory_.module();
 
-		nova::RuntimeDiagnostics diagnostics;
+		mythos::RuntimeDiagnostics diagnostics;
 		diagnostics.buildFingerprint = identity_.fingerprint;
 		diagnostics.buildIdentity = identity_.fileVersion.empty()
 			? std::string("Steam app ") + std::to_string(Offsets::kActiveProfile.steamAppId) +
@@ -508,4 +508,4 @@ void Runtime::WorkerLoopImpl() {
 	}
 }
 
-} // namespace nova_host
+} // namespace mythos_host

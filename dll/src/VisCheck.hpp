@@ -8,28 +8,28 @@
 // not reflected, WasRecentlyRendered is used as a render-state fallback.
 //
 // To match bodycam-master, the opted-in ProcessEvent call runs synchronously
-// from NOVA's worker thread. This can re-enter the engine at an unsafe phase;
+// from MYTHOS's worker thread. This can re-enter the engine at an unsafe phase;
 // the UI keeps it off by default and labels the risk explicitly.
 //
 // Everything fails open (reports "visible") when the check cannot be resolved
 // or faults, so nothing silently disappears. Implements the core
-// nova::VisibilityProbe interface; this is one of the only NOVA.dll modules
+// mythos::VisibilityProbe interface; this is one of the only MYTHOS.dll modules
 // allowed to call engine functions.
 // ============================================================================
 #pragma once
-#include "nova/NamePool.hpp"
-#include "nova/ReadOnlyMemory.hpp"
-#include "nova/UnrealTypes.hpp"
-#include "nova/VisibilityProbe.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
+#include "mythos/UnrealTypes.hpp"
+#include "mythos/VisibilityProbe.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 
-namespace nova_host {
+namespace mythos_host {
 
-class VisCheck final : public nova::VisibilityProbe {
+class VisCheck final : public mythos::VisibilityProbe {
 public:
 	enum class Method : int {
 		None = 0,
@@ -51,7 +51,7 @@ public:
 		std::string message = "not initialized";
 	};
 
-	VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names);
+	VisCheck(const mythos::ReadOnlyMemory& memory, const mythos::NamePool& names);
 
 	// Attempts resolution against the local PlayerController. Call once per
 	// worker tick; bounded retries, then it stays quiet.
@@ -68,7 +68,7 @@ public:
 
 	[[nodiscard]] bool active() const override { return engineCallsEnabled_ && status_.ready; }
 	[[nodiscard]] bool IsVisible(uintptr_t pawn,
-	                             const nova::FVector& cameraLocation) const override;
+	                             const mythos::FVector& cameraLocation) const override;
 
 	[[nodiscard]] const Status& status() const { return status_; }
 
@@ -95,12 +95,12 @@ private:
 	[[nodiscard]] uintptr_t ResolveProcessEvent(uintptr_t base, uintptr_t playerController) const;
 	[[nodiscard]] uintptr_t FindFunctionInClassChain(uintptr_t cls, const char* want) const;
 	[[nodiscard]] bool ReadParamLayout(uintptr_t function, ParamLayout& layout, Method method) const;
-	[[nodiscard]] bool Query(uintptr_t pawn, const nova::FVector& cameraLocation) const;
+	[[nodiscard]] bool Query(uintptr_t pawn, const mythos::FVector& cameraLocation) const;
 	[[nodiscard]] bool VerifyProcessEvent(uintptr_t function) const;
 	[[nodiscard]] bool IsExecutable(uintptr_t address, std::size_t size) const;
 
-	const nova::ReadOnlyMemory& memory_;
-	const nova::NamePool&       names_;
+	const mythos::ReadOnlyMemory& memory_;
+	const mythos::NamePool&       names_;
 	uintptr_t  playerController_ = 0;
 	uintptr_t  processEvent_ = 0;
 	uintptr_t  function_ = 0;
@@ -113,4 +113,4 @@ private:
 	mutable std::unordered_map<uintptr_t, CacheEntry> cache_;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

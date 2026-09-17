@@ -8,10 +8,10 @@
 #include <cfloat>
 #include <cstdio>
 
-namespace nova_host {
+namespace mythos_host {
 
-nova::ProjectionSettings EspRenderer::BuildProjection(const nova::OverlayConfig& config) const {
-	nova::ProjectionSettings settings;
+mythos::ProjectionSettings EspRenderer::BuildProjection(const mythos::OverlayConfig& config) const {
+	mythos::ProjectionSettings settings;
 	settings.axisOverride = config.projection.axisOverride;
 	settings.fovScale = static_cast<double>(config.projection.fovScale);
 	settings.fallbackFov = config.projection.fallbackFov;
@@ -48,7 +48,7 @@ void EspRenderer::DrawLine(const ImVec2& from, const ImVec2& to, ImU32 color) co
 	drawList->AddLine(from, to, color, lineThickness_);
 }
 
-void EspRenderer::DrawBoxOutline(const nova::BoxRect& box, ImU32 color) const {
+void EspRenderer::DrawBoxOutline(const mythos::BoxRect& box, ImU32 color) const {
 	ImDrawList* drawList = ImGui::GetBackgroundDrawList();
 	if (drawList == nullptr) return;
 	const ImVec2 topLeft(static_cast<float>(box.left), static_cast<float>(box.top));
@@ -60,7 +60,7 @@ void EspRenderer::DrawBoxOutline(const nova::BoxRect& box, ImU32 color) const {
 	drawList->AddRect(topLeft, bottomRight, color, 0.0f, 0, lineThickness_);
 }
 
-void EspRenderer::DrawCornerBox(const nova::BoxRect& box, ImU32 color) const {
+void EspRenderer::DrawCornerBox(const mythos::BoxRect& box, ImU32 color) const {
 	const double width = box.width();
 	const double height = box.height();
 	if (width <= 0.0 || height <= 0.0) return;
@@ -92,7 +92,7 @@ void EspRenderer::DrawCircle(const ImVec2& center, float radius, ImU32 color) co
 	drawList->AddCircle(center, radius, color, 0, lineThickness_);
 }
 
-void EspRenderer::DrawHealthBar(const nova::BoxRect& box, float percent) const {
+void EspRenderer::DrawHealthBar(const mythos::BoxRect& box, float percent) const {
 	ImDrawList* drawList = ImGui::GetBackgroundDrawList();
 	if (drawList == nullptr) return;
 	percent = (std::max)(0.0f, (std::min)(100.0f, percent));
@@ -106,7 +106,7 @@ void EspRenderer::DrawHealthBar(const nova::BoxRect& box, float percent) const {
 	                        ImVec2(x + barWidth + 1.0f, static_cast<float>(box.bottom) + 1.0f),
 	                        theme::kEspOutline);
 
-	const nova::Color4 color = nova::HealthColor(percent);
+	const mythos::Color4 color = mythos::HealthColor(percent);
 	const float fill = height * (percent / 100.0f);
 	drawList->AddRectFilled(ImVec2(x, static_cast<float>(box.bottom) - fill),
 	                        ImVec2(x + barWidth, static_cast<float>(box.bottom)),
@@ -115,8 +115,8 @@ void EspRenderer::DrawHealthBar(const nova::BoxRect& box, float percent) const {
 	                                 static_cast<int>(color.b * 255.0f), 255));
 }
 
-void EspRenderer::DrawSkeleton(const nova::PlayerSnapshot& player, const ProjectedPose& pose,
-                               ImU32 color, nova::BoneCounters& boneCounters) const {
+void EspRenderer::DrawSkeleton(const mythos::PlayerSnapshot& player, const ProjectedPose& pose,
+                               ImU32 color, mythos::BoneCounters& boneCounters) const {
 	const size_t count = (std::min)(pose.points.size(), player.bones.size());
 	int drawn = 0;
 	for (size_t i = 0; i < count; ++i) {
@@ -133,8 +133,8 @@ void EspRenderer::DrawSkeleton(const nova::PlayerSnapshot& player, const Project
 	if (drawn > 0) ++boneCounters.skeletonsDrawn;
 }
 
-void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayConfig& config,
-                       float screenWidth, float screenHeight, nova::BoneCounters& boneCounters) {
+void EspRenderer::Draw(const mythos::GameSnapshot& snapshot, const mythos::OverlayConfig& config,
+                       float screenWidth, float screenHeight, mythos::BoneCounters& boneCounters) {
 	if (!snapshot.valid || screenWidth <= 0.0f || screenHeight <= 0.0f) return;
 
 	textScale_ = config.visuals.textScale;
@@ -142,16 +142,16 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 	outlineExtra_ = config.visuals.outlineExtra;
 	lineThickness_ = config.visuals.lineThickness;
 
-	nova::CameraView view = snapshot.camera;
+	mythos::CameraView view = snapshot.camera;
 	if (view.usedFallbackFov) view.fov = config.projection.fallbackFov;
 	if (!view.valid) return;
 
-	const nova::ProjectionSettings projection = BuildProjection(config);
-	const nova::PlayerFeatureConfig& features = config.players;
+	const mythos::ProjectionSettings projection = BuildProjection(config);
+	const mythos::PlayerFeatureConfig& features = config.players;
 
 	ProjectedPose poseScratch;
 
-	for (const nova::PlayerSnapshot& player : snapshot.players) {
+	for (const mythos::PlayerSnapshot& player : snapshot.players) {
 		// Snapshot capture may retain extra candidates for aim. These gates belong
 		// to ESP presentation, not target selection.
 		if (player.sameTeam ? !features.showTeam : !features.showEnemy) continue;
@@ -167,20 +167,20 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 		const ImU32 color = occluded ? theme::kEspOccluded
 		                             : (player.sameTeam ? theme::kEspTeam : theme::kEspEnemy);
 
-		nova::BoxRect box;
+		mythos::BoxRect box;
 		bool haveBox = false;
 
 		const bool needPoseProjection =
 			(features.boxFromBones || features.skeleton || features.headDot) &&
 			player.hasPose && !player.bones.empty();
 		if (needPoseProjection) {
-			poseScratch.points.assign(player.bones.size(), nova::Vec2d{});
+			poseScratch.points.assign(player.bones.size(), mythos::Vec2d{});
 			poseScratch.valid.assign(player.bones.size(), 0);
 			poseScratch.visible.clear();
 
 			for (size_t i = 0; i < player.bones.size(); ++i) {
-				nova::Vec2d projected;
-				if (!nova::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
+				mythos::Vec2d projected;
+				if (!mythos::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
 				                                player.bones[i].world, projected)) {
 					continue;
 				}
@@ -191,18 +191,18 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 		}
 
 		if (features.boxFromBones && needPoseProjection) {
-			box = nova::ComputePoseBox(poseScratch.visible, static_cast<int>(player.bones.size()));
+			box = mythos::ComputePoseBox(poseScratch.visible, static_cast<int>(player.bones.size()));
 			haveBox = box.valid;
 		}
 
 		if (!haveBox && player.hasCapsule) {
-			nova::Vec2d top;
-			nova::Vec2d bottom;
-			if (nova::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
+			mythos::Vec2d top;
+			mythos::Vec2d bottom;
+			if (mythos::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
 			                               player.capsuleTop, top) &&
-			    nova::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
+			    mythos::ProjectWorldToScreen(view, projection, screenWidth, screenHeight,
 			                               player.capsuleBottom, bottom)) {
-				box = nova::ComputeCapsuleBox(top, bottom, player.capsuleRadius,
+				box = mythos::ComputeCapsuleBox(top, bottom, player.capsuleRadius,
 				                              player.capsuleHalfHeight);
 				haveBox = box.valid;
 			}
@@ -210,7 +210,7 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 
 		if (!haveBox) continue;
 
-		nova::ScaleBox(box, static_cast<double>(features.boxScale));
+		mythos::ScaleBox(box, static_cast<double>(features.boxScale));
 		if (box.right < 0.0 || box.bottom < 0.0 || box.left > screenWidth || box.top > screenHeight) {
 			continue;
 		}
@@ -219,9 +219,9 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 		const float top = static_cast<float>(box.top);
 		const float bottom = static_cast<float>(box.bottom);
 
-		if (features.boxMode == static_cast<int>(nova::BoxMode::Full)) {
+		if (features.boxMode == static_cast<int>(mythos::BoxMode::Full)) {
 			DrawBoxOutline(box, color);
-		} else if (features.boxMode == static_cast<int>(nova::BoxMode::Corners)) {
+		} else if (features.boxMode == static_cast<int>(mythos::BoxMode::Corners)) {
 			DrawCornerBox(box, color);
 		}
 
@@ -253,7 +253,7 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 			char healthText[32] = {};
 			std::snprintf(healthText, sizeof(healthText), "%.0f HP",
 			              static_cast<double>(player.health));
-			const nova::Color4 healthColor = nova::HealthColor(player.health / player.maxHealth * 100.0f);
+			const mythos::Color4 healthColor = mythos::HealthColor(player.health / player.maxHealth * 100.0f);
 			DrawText(ImVec2(centerX, belowY), healthText,
 			         IM_COL32(static_cast<int>(healthColor.r * 255.0f),
 			                  static_cast<int>(healthColor.g * 255.0f),
@@ -270,14 +270,14 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 		if (features.headDot && player.hasPose && player.headBone >= 0 &&
 		    static_cast<size_t>(player.headBone) < poseScratch.points.size() &&
 		    poseScratch.valid[static_cast<size_t>(player.headBone)] != 0) {
-			const nova::Vec2d& head = poseScratch.points[static_cast<size_t>(player.headBone)];
+			const mythos::Vec2d& head = poseScratch.points[static_cast<size_t>(player.headBone)];
 			DrawCircle(ImVec2(static_cast<float>(head.x), static_cast<float>(head.y)),
 			           features.headDotSize, color);
 		}
 	}
 }
 
-void EspRenderer::DrawAimOverlay(const nova::OverlayConfig& config, const AimTelemetry& aim,
+void EspRenderer::DrawAimOverlay(const mythos::OverlayConfig& config, const AimTelemetry& aim,
                                  float screenWidth, float screenHeight) {
 	if (screenWidth <= 0.0f || screenHeight <= 0.0f) return;
 	if (!config.aim.drawFov && !config.aim.drawTarget) return;
@@ -306,4 +306,4 @@ void EspRenderer::DrawAimOverlay(const nova::OverlayConfig& config, const AimTel
 	}
 }
 
-} // namespace nova_host
+} // namespace mythos_host

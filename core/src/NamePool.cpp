@@ -1,4 +1,4 @@
-#include "nova/NamePool.hpp"
+#include "mythos/NamePool.hpp"
 
 #include "Offsets.hpp"
 
@@ -7,7 +7,7 @@
 #include <cctype>
 #include <cstring>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 constexpr size_t kTemporaryChars = 256;
@@ -171,4 +171,4 @@ bool ContainsCaseInsensitive(const char* haystack, const char* needle) {
 	return false;
 }
 
-} // namespace nova
+} // namespace mythos

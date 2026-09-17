@@ -1,6 +1,6 @@
-#include "nova/UnrealTypes.hpp"
+#include "mythos/UnrealTypes.hpp"
 
-namespace nova {
+namespace mythos {
 
 FQuat QuatMultiply(const FQuat& a, const FQuat& b) {
 	FQuat result;
@@ -32,4 +32,4 @@ bool TransformLooksSane(const FTransform& transform) {
 	return true;
 }
 
-} // namespace nova
+} // namespace mythos

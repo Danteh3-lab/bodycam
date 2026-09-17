@@ -2,7 +2,7 @@
 
 #include "Theme.hpp"
 
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
@@ -14,7 +14,7 @@
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT message,
                                                              WPARAM wParam, LPARAM lParam);
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 constexpr D3D_FEATURE_LEVEL kFeatureLevels[] = {
@@ -87,7 +87,7 @@ bool OverlayWindow::Initialize(HWND targetWindow, std::wstring* error) {
 
 	window_ = CreateWindowExW(
 		WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-		kWindowClass, L"NOVA Overlay", WS_POPUP,
+		kWindowClass, L"MYTHOS Overlay", WS_POPUP,
 		rect.left, rect.top, width_, height_,
 		nullptr, nullptr, GetModuleHandleW(nullptr), this);
 	if (window_ == nullptr) {
@@ -119,7 +119,7 @@ bool OverlayWindow::Initialize(HWND targetWindow, std::wstring* error) {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
-	io.IniFilename = nullptr; // layout persists through NOVA settings
+	io.IniFilename = nullptr; // layout persists through MYTHOS settings
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
 	theme::Apply();
@@ -133,7 +133,7 @@ bool OverlayWindow::Initialize(HWND targetWindow, std::wstring* error) {
 	ImGui_ImplDX11_CreateDeviceObjects();
 	imguiReady_ = true;
 
-	nova::LogInfo("overlay window created (" + std::to_string(width_) + "x" +
+	mythos::LogInfo("overlay window created (" + std::to_string(width_) + "x" +
 	              std::to_string(height_) + ")");
 	return true;
 }
@@ -209,7 +209,7 @@ bool OverlayWindow::ResizeSwapChain(int width, int height) {
 	                                                 static_cast<UINT>(height),
 	                                                 DXGI_FORMAT_UNKNOWN, 0);
 	if (FAILED(result)) {
-		nova::LogWarn("swap chain resize failed (0x" + std::to_string(static_cast<unsigned long>(result)) + ")");
+		mythos::LogWarn("swap chain resize failed (0x" + std::to_string(static_cast<unsigned long>(result)) + ")");
 		return RecreateDevice();
 	}
 	width_ = width;
@@ -218,7 +218,7 @@ bool OverlayWindow::ResizeSwapChain(int width, int height) {
 }
 
 bool OverlayWindow::RecreateDevice() {
-	nova::LogWarn("recreating overlay device resources");
+	mythos::LogWarn("recreating overlay device resources");
 	ReleaseRenderTarget();
 	swapChain_.Reset();
 	context_.Reset();
@@ -330,7 +330,7 @@ void OverlayWindow::FocusWindow(HWND window) {
 void OverlayWindow::SetMenuVisible(bool visible) {
 	menuVisible_ = visible;
 	if (!ApplyExtendedStyle()) {
-		nova::LogWarn("failed to apply overlay extended style");
+		mythos::LogWarn("failed to apply overlay extended style");
 	}
 	if (visible) {
 		FocusWindow(window_);
@@ -369,10 +369,10 @@ void OverlayWindow::EndFrame() {
 
 	const HRESULT result = swapChain_->Present(1, 0);
 	if (result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET) {
-		nova::LogWarn("overlay device lost; attempting recovery");
+		mythos::LogWarn("overlay device lost; attempting recovery");
 		if (!RecreateDevice()) {
 			rendererFailed_ = true;
-			nova::LogError("overlay device recovery failed");
+			mythos::LogError("overlay device recovery failed");
 		}
 	}
 }
@@ -443,4 +443,4 @@ LRESULT WINAPI OverlayWindow::WindowProc(HWND hwnd, UINT message, WPARAM wParam,
 	return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
-} // namespace nova_host
+} // namespace mythos_host

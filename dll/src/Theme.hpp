@@ -1,5 +1,5 @@
 // ============================================================================
-// Theme — NOVA's rounded dark identity and font set.
+// Theme — MYTHOS's rounded dark identity and font set.
 //
 // These C++ tokens are the runtime source of truth; DESIGN.md mirrors the
 // exact values and rationale. Segoe UI for controls, Bahnschrift for
@@ -8,19 +8,19 @@
 #pragma once
 #include <imgui.h>
 
-namespace nova_host::theme {
+namespace mythos_host::theme {
 
 // ---- Colour tokens --------------------------------------------------------
-inline constexpr ImU32 kSurface0   = IM_COL32(10, 11, 13, 246);  // window background
-inline constexpr ImU32 kSurface1   = IM_COL32(16, 18, 21, 255);  // child / panel
-inline constexpr ImU32 kSurface2   = IM_COL32(24, 27, 31, 255);  // frames, buttons
-inline constexpr ImU32 kSurface3   = IM_COL32(33, 37, 42, 255);  // hovered frames
-inline constexpr ImU32 kBorder     = IM_COL32(44, 49, 56, 190);
+inline constexpr ImU32 kSurface0   = IM_COL32(13, 11, 19, 246);  // window background #0D0B13
+inline constexpr ImU32 kSurface1   = IM_COL32(20, 17, 29, 255);  // child / panel #14111D
+inline constexpr ImU32 kSurface2   = IM_COL32(30, 26, 42, 255);  // frames, buttons #1E1A2A
+inline constexpr ImU32 kSurface3   = IM_COL32(43, 36, 59, 255);  // hovered frames #2B243B
+inline constexpr ImU32 kBorder     = IM_COL32(66, 55, 84, 190);  // #423754
 inline constexpr ImU32 kText       = IM_COL32(236, 239, 242, 255);
-inline constexpr ImU32 kTextDim    = IM_COL32(150, 158, 168, 255);
-inline constexpr ImU32 kTextFaint  = IM_COL32(104, 112, 122, 255);
-inline constexpr ImU32 kAccent     = IM_COL32(64, 214, 224, 255);  // cyan controls/status
-inline constexpr ImU32 kAccentDim  = IM_COL32(38, 129, 137, 255);
+inline constexpr ImU32 kTextDim    = IM_COL32(164, 156, 177, 255); // #A49CB1
+inline constexpr ImU32 kTextFaint  = IM_COL32(112, 103, 125, 255); // #70677D
+inline constexpr ImU32 kAccent     = IM_COL32(177, 144, 255, 255); // oracle indigo #B190FF
+inline constexpr ImU32 kAccentDim  = IM_COL32(105, 81, 159, 255);  // #69519F
 inline constexpr ImU32 kSuccess    = IM_COL32(74, 210, 118, 255);
 inline constexpr ImU32 kWarn       = IM_COL32(255, 176, 46, 255);
 inline constexpr ImU32 kDanger     = IM_COL32(255, 76, 76, 255);
@@ -63,4 +63,4 @@ void Pop();
 // Convenience colour helpers.
 [[nodiscard]] ImVec4 ToVec4(ImU32 color);
 
-} // namespace nova_host::theme
+} // namespace mythos_host::theme

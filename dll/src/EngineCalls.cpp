@@ -9,7 +9,7 @@
 #include <cstring>
 #include <memory>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 __declspec(noinline) bool SafeInvoke(void(__fastcall* function)(void*, float),
@@ -31,13 +31,13 @@ __declspec(noinline) bool GuardedWriteDouble(uintptr_t address, double value) {
 	}
 }
 
-bool ReadDouble(const nova::ReadOnlyMemory& memory, uintptr_t address, double& out) {
+bool ReadDouble(const mythos::ReadOnlyMemory& memory, uintptr_t address, double& out) {
 	return memory.readRaw<double>(address, out) && std::isfinite(out);
 }
 
 } // namespace
 
-EngineCalls::EngineCalls(const nova::ReadOnlyMemory& memory, GameThreadExecutor& gameThread)
+EngineCalls::EngineCalls(const mythos::ReadOnlyMemory& memory, GameThreadExecutor& gameThread)
 	: memory_(memory), gameThread_(gameThread), scanner_(memory, true) {}
 
 void EngineCalls::RefreshStatus() {
@@ -68,7 +68,7 @@ void EngineCalls::Resolve(std::size_t scanBudgetBytes) {
 	if (!scanStarted_ || scanCursor_.finished) return;
 
 	const uint64_t start = GetTickCount64();
-	const nova::ModuleScanner::StepResult result =
+	const mythos::ModuleScanner::StepResult result =
 		scanner_.Step(scanCursor_, scanBudgetBytes, &EngineCalls::ScanChunk, this);
 	status_.scanMs += static_cast<uint32_t>(GetTickCount64() - start);
 
@@ -76,13 +76,13 @@ void EngineCalls::Resolve(std::size_t scanBudgetBytes) {
 		Adopt(pitchAddress_, yawAddress_, true);
 		return;
 	}
-	status_.message = result == nova::ModuleScanner::StepResult::Exhausted
+	status_.message = result == mythos::ModuleScanner::StepResult::Exhausted
 		? "AddPitch/AddYawInput not verified; using direct rotation write"
 		: "scanning for AddPitch/AddYawInput...";
 }
 
 bool EngineCalls::VerifyAddInput(uintptr_t function, uint32_t wantOffset) const {
-	if (!nova::IsPlausiblePointer(function)) return false;
+	if (!mythos::IsPlausiblePointer(function)) return false;
 
 	uint8_t bytes[Offsets::Signatures::AddInputFnSize] = {};
 	if (!memory_.read(function, bytes, sizeof(bytes))) return false;
@@ -202,7 +202,7 @@ void EngineCalls::Adopt(uintptr_t pitch, uintptr_t yaw, bool foundByScan) {
 }
 
 void EngineCalls::ProbeScale(uintptr_t playerController, bool yaw) {
-	if (!ready() || !nova::IsPlausiblePointer(playerController)) return;
+	if (!ready() || !mythos::IsPlausiblePointer(playerController)) return;
 
 	AddInputFn function = yaw ? addYaw_ : addPitch_;
 	if (function == nullptr) return;
@@ -279,7 +279,7 @@ bool EngineCalls::InvokeOnGameThread(AddInputFn function, uintptr_t playerContro
 
 bool EngineCalls::AddLookInput(uintptr_t playerController, double deltaYaw, double deltaPitch,
                                double maxStep) {
-	if (!enginePathVerified() || !nova::IsPlausiblePointer(playerController)) return false;
+	if (!enginePathVerified() || !mythos::IsPlausiblePointer(playerController)) return false;
 
 	if (!yawCalibrated_ && std::fabs(deltaYaw) > 1e-4) ProbeScale(playerController, true);
 	if (!pitchCalibrated_ && std::fabs(deltaPitch) > 1e-4) ProbeScale(playerController, false);
@@ -338,7 +338,7 @@ bool EngineCalls::AddLookInput(uintptr_t playerController, double deltaYaw, doub
 
 bool EngineCalls::AddLookInputDirect(uintptr_t playerController, double deltaYaw, double deltaPitch,
                                      double maxStep) {
-	if (!nova::IsPlausiblePointer(playerController)) return false;
+	if (!mythos::IsPlausiblePointer(playerController)) return false;
 
 	if (!(maxStep >= 0.1)) maxStep = 0.1;
 	if (deltaYaw > maxStep) deltaYaw = maxStep;
@@ -347,7 +347,7 @@ bool EngineCalls::AddLookInputDirect(uintptr_t playerController, double deltaYaw
 	if (deltaPitch < -maxStep) deltaPitch = -maxStep;
 
 	// Direct writes intentionally mirror bodycam-master: they run synchronously
-	// on NOVA's worker thread and do not depend on the optional APC path. Read
+	// on MYTHOS's worker thread and do not depend on the optional APC path. Read
 	// every requested axis before writing so a failed read produces no writes.
 	const bool wantYaw = std::fabs(deltaYaw) > 1e-4;
 	const bool wantPitch = std::fabs(deltaPitch) > 1e-4;
@@ -376,8 +376,8 @@ bool EngineCalls::AddLookInputDirect(uintptr_t playerController, double deltaYaw
 	return ok;
 }
 
-bool EngineCalls::SetControlRotation(uintptr_t playerController, const nova::FRotator& rotation) {
-	if (!nova::IsPlausiblePointer(playerController)) return false;
+bool EngineCalls::SetControlRotation(uintptr_t playerController, const mythos::FRotator& rotation) {
+	if (!mythos::IsPlausiblePointer(playerController)) return false;
 	if (!rotation.finite()) return false;
 
 	// Like the reference implementation, the legacy direct method is a guarded
@@ -388,4 +388,4 @@ bool EngineCalls::SetControlRotation(uintptr_t playerController, const nova::FRo
 	return pitchOk && yawOk;
 }
 
-} // namespace nova_host
+} // namespace mythos_host

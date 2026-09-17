@@ -6,10 +6,10 @@
 // back to stale pointers.
 // ============================================================================
 #pragma once
-#include "nova/Diagnostics.hpp"
-#include "nova/Projection.hpp"
-#include "nova/UnrealTypes.hpp"
-#include "nova/WorldResolver.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/Projection.hpp"
+#include "mythos/UnrealTypes.hpp"
+#include "mythos/WorldResolver.hpp"
 
 #include "Offsets.hpp"
 
@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-namespace nova {
+namespace mythos {
 
 enum class PlayerKind : uint8_t {
 	Unknown = 0,
@@ -85,4 +85,4 @@ struct GameSnapshot {
 
 using GameSnapshotPtr = std::shared_ptr<const GameSnapshot>;
 
-} // namespace nova
+} // namespace mythos

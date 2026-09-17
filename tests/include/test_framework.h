@@ -1,5 +1,5 @@
 // ============================================================================
-// Minimal test framework for the non-shipping NOVA test target.
+// Minimal test framework for the non-shipping MYTHOS test target.
 // No external dependencies; plain C++ and a tiny registry.
 // ============================================================================
 #pragma once
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace novatest {
+namespace mythostest {
 
 struct TestCase {
 	const char* name = nullptr;
@@ -86,13 +86,13 @@ inline int RunAll() {
 	return failedTests == 0 ? 0 : 1;
 }
 
-} // namespace novatest
+} // namespace mythostest
 
-#define NOVA_TEST(name)                                                        \
+#define MYTHOS_TEST(name)                                                        \
 	static void name();                                                        \
-	static ::novatest::Registrar nova_registrar_##name(#name, &name);          \
+	static ::mythostest::Registrar mythos_registrar_##name(#name, &name);          \
 	static void name()
 
-#define CHECK(expression) ::novatest::Check((expression), #expression, __FILE__, __LINE__)
+#define CHECK(expression) ::mythostest::Check((expression), #expression, __FILE__, __LINE__)
 #define CHECK_EQ(left, right)                                                  \
-	::novatest::CheckEqual((left), (right), #left " == " #right, __FILE__, __LINE__)
+	::mythostest::CheckEqual((left), (right), #left " == " #right, __FILE__, __LINE__)

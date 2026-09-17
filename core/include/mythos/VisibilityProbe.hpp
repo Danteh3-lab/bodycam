@@ -4,14 +4,14 @@
 //
 // The implementation lives in the quarantined DLL interaction module
 // (VisCheck), which is the only place allowed to call engine functions. The
-// core never sees that code, so nova_core stays free of engine interaction.
+// core never sees that code, so mythos_core stays free of engine interaction.
 // ============================================================================
 #pragma once
-#include "nova/UnrealTypes.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <cstdint>
 
-namespace nova {
+namespace mythos {
 
 class VisibilityProbe {
 public:
@@ -26,4 +26,4 @@ public:
 	                                     const FVector& cameraLocation) const = 0;
 };
 
-} // namespace nova
+} // namespace mythos

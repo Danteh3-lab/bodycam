@@ -3,13 +3,13 @@
 // The control panel renders these values; no player data is included.
 // ============================================================================
 #pragma once
-#include "nova/Diagnostics.hpp"
-#include "nova/WorldResolver.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/WorldResolver.hpp"
 
 #include <cstdint>
 #include <string>
 
-namespace nova {
+namespace mythos {
 
 enum class RuntimeState {
 	Starting = 0,
@@ -58,4 +58,4 @@ struct RuntimeDiagnostics {
 	uint64_t sequence = 0;
 };
 
-} // namespace nova
+} // namespace mythos

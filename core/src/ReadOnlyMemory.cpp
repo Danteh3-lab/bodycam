@@ -1,8 +1,8 @@
-#include "nova/ReadOnlyMemory.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
 
 #include "Offsets.hpp"
 
-namespace nova {
+namespace mythos {
 
 bool IsPlausibleRange(uintptr_t address, size_t size) {
 	if (size == 0) return false;
@@ -43,4 +43,4 @@ bool ReadArrayElement(const ReadOnlyMemory& memory, const ArrayView& view,
 	return memory.readPointer(element, out);
 }
 
-} // namespace nova
+} // namespace mythos

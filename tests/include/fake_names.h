@@ -10,7 +10,7 @@
 #include <cstring>
 #include <string>
 
-namespace novatest {
+namespace mythostest {
 
 class FakeNamePool {
 public:
@@ -50,4 +50,4 @@ private:
 	size_t cursor_ = 0;
 };
 
-} // namespace novatest
+} // namespace mythostest

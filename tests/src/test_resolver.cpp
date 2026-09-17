@@ -3,18 +3,18 @@
 #include "world_fixture.h"
 
 #include "Offsets.hpp"
-#include "nova/NamePool.hpp"
-#include "nova/WorldResolver.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/WorldResolver.hpp"
 
 #include <cstring>
 
-NOVA_TEST(ResolveFromKnownRva) {
-	novatest::WorldFixture fixture;
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+MYTHOS_TEST(ResolveFromKnownRva) {
+	mythostest::WorldFixture fixture;
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	CHECK(resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::Ok);
+	CHECK(resolver.stage() == mythos::ResolveStage::Ok);
 	CHECK(resolver.context().valid);
 	CHECK(resolver.context().proven);
 	CHECK_EQ(resolver.context().world, fixture.world());
@@ -27,112 +27,112 @@ NOVA_TEST(ResolveFromKnownRva) {
 	CHECK_EQ(resolver.diagnostics().readFailures, 0u);
 }
 
-NOVA_TEST(UnprovenWorldIsReported) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(UnprovenWorldIsReported) {
+	mythostest::WorldFixture fixture;
 	fixture.MakeWorldUnproven();
 
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	CHECK(resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::WorldUnproven);
+	CHECK(resolver.stage() == mythos::ResolveStage::WorldUnproven);
 	CHECK(!resolver.context().proven);
 }
 
-NOVA_TEST(ChainStageFailures) {
+MYTHOS_TEST(ChainStageFailures) {
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		const uintptr_t value = 0;
 		fixture.memory.WritePointer(fixture.gworldSlot(), value);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoGWorld);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoGWorld);
 	}
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		fixture.memory.WritePointer(fixture.localPlayer() + Offsets::LPPlayerController, 0);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoPlayerController);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoPlayerController);
 	}
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		fixture.memory.WritePointer(fixture.playerController() + Offsets::CameraManager, 0);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoCameraManager);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoCameraManager);
 	}
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		fixture.memory.WritePointer(fixture.world() + Offsets::GameState, 0);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoGameState);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoGameState);
 	}
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		fixture.memory.WriteInt32(fixture.gameState() + Offsets::PlayerArray + 0x08, -1);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoPlayerArray);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoPlayerArray);
 	}
 	{
-		novatest::WorldFixture fixture;
+		mythostest::WorldFixture fixture;
 		fixture.memory.WritePointer(fixture.playerController() + Offsets::AcknowledgedPawn, 0);
-		nova::NamePool names(fixture.memory);
-		nova::WorldResolver resolver(fixture.memory, names);
+		mythos::NamePool names(fixture.memory);
+		mythos::WorldResolver resolver(fixture.memory, names);
 		CHECK(!resolver.Resolve());
-		CHECK(resolver.stage() == nova::ResolveStage::NoLocalPawn);
+		CHECK(resolver.stage() == mythos::ResolveStage::NoLocalPawn);
 	}
 }
 
-NOVA_TEST(LocalPlayerElementFailure) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(LocalPlayerElementFailure) {
+	mythostest::WorldFixture fixture;
 	const uintptr_t emptyArray = fixture.memory.Allocate(0x10);
 	fixture.memory.WritePointer(emptyArray, 0);
 	fixture.memory.WritePointer(fixture.gameInstance() + Offsets::LocalPlayer + 0x00, emptyArray);
 	fixture.memory.WriteInt32(fixture.gameInstance() + Offsets::LocalPlayer + 0x08, 1);
 	fixture.memory.WriteInt32(fixture.gameInstance() + Offsets::LocalPlayer + 0x0C, 1);
 
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 	CHECK(!resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::NoLocalPlayer);
+	CHECK(resolver.stage() == mythos::ResolveStage::NoLocalPlayer);
 }
 
-NOVA_TEST(WorldAnchorFallbackScanFindsSlot) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(WorldAnchorFallbackScanFindsSlot) {
+	mythostest::WorldFixture fixture;
 
 	// Move the world pointer off the known slot into the data section.
 	const uintptr_t dataSection = fixture.dataSectionBase();
 	fixture.memory.WritePointer(dataSection + 0x800, fixture.world());
 	fixture.memory.WritePointer(fixture.gworldSlot(), 0);
 
-	nova::NamePool names(fixture.memory);
-	nova::ResolverOptions options;
+	mythos::NamePool names(fixture.memory);
+	mythos::ResolverOptions options;
 	options.useKnownRva = false;
-	nova::WorldResolver resolver(fixture.memory, names, options);
+	mythos::WorldResolver resolver(fixture.memory, names, options);
 
 	CHECK(!resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::NoGWorld);
+	CHECK(resolver.stage() == mythos::ResolveStage::NoGWorld);
 
 	CHECK(resolver.PumpFallback(0));
-	CHECK(resolver.stage() == nova::ResolveStage::Ok);
+	CHECK(resolver.stage() == mythos::ResolveStage::Ok);
 	CHECK(!resolver.diagnostics().worldFromRva);
 	CHECK_EQ(resolver.diagnostics().anchorSlot, dataSection + 0x800);
 	CHECK(resolver.diagnostics().fullScans >= 1);
 }
 
-NOVA_TEST(RescanRequestDoesNotRestartScanMidPass) {
+MYTHOS_TEST(RescanRequestDoesNotRestartScanMidPass) {
 	// Regression: Resolve() failing on every tick used to re-arm a rescan and
 	// reset the scan cursor before it could ever reach the end of the data
 	// sections. With a dead known-RVA slot the fallback must still complete.
-	novatest::WorldFixture fixture;
+	mythostest::WorldFixture fixture;
 
 	const uintptr_t bigStart = fixture.moduleBase() + 0x09200000;
 	const size_t bigSize = 0x40000; // 256 KiB, several chunks
@@ -143,10 +143,10 @@ NOVA_TEST(RescanRequestDoesNotRestartScanMidPass) {
 	// Kill the known-RVA anchor so Resolve() fails every tick.
 	fixture.memory.WritePointer(fixture.gworldSlot(), 0);
 
-	nova::NamePool names(fixture.memory);
-	nova::ResolverOptions options;
+	mythos::NamePool names(fixture.memory);
+	mythos::ResolverOptions options;
 	options.fallbackStepBytes = Offsets::Scan::ChunkBytes; // one chunk per call
-	nova::WorldResolver resolver(fixture.memory, names, options);
+	mythos::WorldResolver resolver(fixture.memory, names, options);
 
 	bool found = false;
 	for (int tick = 0; tick < 64 && !found; ++tick) {
@@ -154,12 +154,12 @@ NOVA_TEST(RescanRequestDoesNotRestartScanMidPass) {
 		found = resolver.PumpFallback(static_cast<uint64_t>(tick) * 10);
 	}
 	CHECK(found);
-	CHECK(resolver.stage() == nova::ResolveStage::Ok);
+	CHECK(resolver.stage() == mythos::ResolveStage::Ok);
 	CHECK_EQ(resolver.context().world, fixture.world());
 }
 
-NOVA_TEST(KnownNamePoolRvaResolvesWithWorld) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(KnownNamePoolRvaResolvesWithWorld) {
+	mythostest::WorldFixture fixture;
 
 	// Place a valid pool at the known GNames RVA.
 	const uintptr_t hint = fixture.moduleBase() + Offsets::Globals::GNames;
@@ -170,8 +170,8 @@ NOVA_TEST(KnownNamePoolRvaResolvesWithWorld) {
 	fixture.memory.Write(block + 2, "None", 4);
 	fixture.memory.WritePointer(hint + Offsets::NamePool::BlocksOffset, block);
 
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	CHECK(resolver.Resolve());
 	CHECK(names.ready());
@@ -179,8 +179,8 @@ NOVA_TEST(KnownNamePoolRvaResolvesWithWorld) {
 	CHECK(resolver.diagnostics().namesFromRva);
 }
 
-NOVA_TEST(NamePoolSignatureFallback) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(NamePoolSignatureFallback) {
+	mythostest::WorldFixture fixture;
 
 	// Fabricate the FNamePool signature in the code section.
 	const uintptr_t code = fixture.moduleBase() + 0x1000;
@@ -201,8 +201,8 @@ NOVA_TEST(NamePoolSignatureFallback) {
 	std::memcpy(pattern + 14, &relative2, sizeof(relative2));
 	fixture.memory.Write(patternAddress, pattern, sizeof(pattern));
 
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 	CHECK(!names.ready());
 
 	CHECK(resolver.PumpFallback(0));
@@ -211,8 +211,8 @@ NOVA_TEST(NamePoolSignatureFallback) {
 	CHECK(!resolver.diagnostics().namesFromRva);
 }
 
-NOVA_TEST(OuterWorldRescueAndReanchor) {
-	novatest::WorldFixture fixture;
+MYTHOS_TEST(OuterWorldRescueAndReanchor) {
+	mythostest::WorldFixture fixture;
 	fixture.MakeWorldUnproven();
 
 	const uintptr_t alternateWorld = fixture.CreateAlternateWorld(true);
@@ -221,11 +221,11 @@ NOVA_TEST(OuterWorldRescueAndReanchor) {
 	const uintptr_t dataSection = fixture.dataSectionBase();
 	fixture.memory.WritePointer(dataSection + 0x400, alternateWorld);
 
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	CHECK(resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::Ok);
+	CHECK(resolver.stage() == mythos::ResolveStage::Ok);
 	CHECK_EQ(resolver.context().world, alternateWorld);
 	CHECK_EQ(resolver.diagnostics().rescues, 1);
 
@@ -233,27 +233,27 @@ NOVA_TEST(OuterWorldRescueAndReanchor) {
 	CHECK_EQ(resolver.diagnostics().reanchors, 1);
 }
 
-NOVA_TEST(MapTransitionKeepsResolving) {
-	novatest::WorldFixture fixture;
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+MYTHOS_TEST(MapTransitionKeepsResolving) {
+	mythostest::WorldFixture fixture;
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	CHECK(resolver.Resolve());
 	resolver.OnMapTransition();
 	CHECK(resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::Ok);
+	CHECK(resolver.stage() == mythos::ResolveStage::Ok);
 	CHECK_EQ(resolver.diagnostics().failStreak, 0);
 }
 
-NOVA_TEST(OffsetsInvalidFailsClosed) {
-	novatest::WorldFixture fixture;
-	nova::NamePool names(fixture.memory);
-	nova::WorldResolver resolver(fixture.memory, names);
+MYTHOS_TEST(OffsetsInvalidFailsClosed) {
+	mythostest::WorldFixture fixture;
+	mythos::NamePool names(fixture.memory);
+	mythos::WorldResolver resolver(fixture.memory, names);
 
 	resolver.MarkOffsetsInvalid();
 	CHECK(!resolver.Resolve());
-	CHECK(resolver.stage() == nova::ResolveStage::OffsetsInvalid);
+	CHECK(resolver.stage() == mythos::ResolveStage::OffsetsInvalid);
 	CHECK(!resolver.PumpFallback(0));
 	CHECK(!resolver.PumpFallback(100000));
-	CHECK(resolver.stage() == nova::ResolveStage::OffsetsInvalid);
+	CHECK(resolver.stage() == mythos::ResolveStage::OffsetsInvalid);
 }

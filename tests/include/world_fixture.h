@@ -7,17 +7,17 @@
 #include "fake_names.h"
 
 #include "Offsets.hpp"
-#include "nova/Projection.hpp"
-#include "nova/UnrealTypes.hpp"
+#include "mythos/Projection.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <vector>
 
-namespace novatest {
+namespace mythostest {
 
-using nova::FQuat;
-using nova::FRotator;
-using nova::FTransform;
-using nova::FVector;
+using mythos::FQuat;
+using mythos::FRotator;
+using mythos::FTransform;
+using mythos::FVector;
 
 class WorldFixture {
 public:
@@ -95,4 +95,4 @@ private:
 
 void WriteTransform(FakeMemory& memory, uintptr_t address, const FVector& translation);
 
-} // namespace novatest
+} // namespace mythostest

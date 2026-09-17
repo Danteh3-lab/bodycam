@@ -1,5 +1,5 @@
 // ============================================================================
-// Offsets.hpp — THE single offset source for NOVA.
+// Offsets.hpp — THE single offset source for MYTHOS.
 //
 // Target : Bodycam-Win64-Shipping.exe (x64, Unreal Engine 5, LWC doubles)
 // Profile: Steam app 2406770, Steam build 25228199
@@ -8,10 +8,10 @@
 //          runtime before their pointer chain is trusted.
 //
 // Interaction contract:
-//   * nova_core reads game memory only. It never writes memory, patches code,
+//   * mythos_core reads game memory only. It never writes memory, patches code,
 //     or calls engine functions; the static contract test enforces this.
 //   * The only engine interaction (aim input calls, visibility calls and their
-//     direct-write fallbacks) lives in the quarantined NOVA.dll modules
+//     direct-write fallbacks) lives in the quarantined MYTHOS.dll modules
 //     EngineCalls / VisCheck / AimController. Injection stays in the loader;
 //     patching, hooks and remote-thread APIs are rejected everywhere.
 // ============================================================================
@@ -410,9 +410,9 @@ namespace Offsets {
 	}
 
 	// ========================================================================
-	// ENGINE INTERACTION — [USED] by the quarantined NOVA.dll modules only.
+	// ENGINE INTERACTION — [USED] by the quarantined MYTHOS.dll modules only.
 	//
-	// nova_core never consumes these constants: the static contract test
+	// mythos_core never consumes these constants: the static contract test
 	// rejects engine-call/write tokens outside EngineCalls / VisCheck /
 	// AimController.
 	// ========================================================================

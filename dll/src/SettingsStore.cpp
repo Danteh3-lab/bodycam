@@ -1,11 +1,11 @@
 #include "SettingsStore.hpp"
 
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <cstdio>
 #include <ctime>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 std::string ClockText() {
@@ -20,46 +20,55 @@ std::string ClockText() {
 
 } // namespace
 
-void SettingsStore::Initialize(const std::filesystem::path& path) {
+void SettingsStore::Initialize(const std::filesystem::path& path,
+                               const std::filesystem::path& legacySource) {
 	std::lock_guard<std::mutex> lock(mutex_);
 	path_ = path;
-	config_ = nova::LoadOverlayConfig(path_, &report_);
-	nova::ClampOverlayConfig(config_);
+	importStatus_ = mythos::ImportOverlayConfigIfMissing(legacySource, path_, &importDetail_);
+	config_ = mythos::LoadOverlayConfig(path_, &report_);
+	mythos::ClampOverlayConfig(config_);
 	dirty_ = false;
 	saveFailed_ = false;
+	if (importStatus_ == mythos::ConfigImportStatus::Imported) {
+		mythos::LogInfo("Imported NOVA settings");
+	} else if (importStatus_ == mythos::ConfigImportStatus::InvalidSource) {
+		mythos::LogWarn("legacy NOVA settings invalid; defaults in use: " + importDetail_);
+	} else if (importStatus_ == mythos::ConfigImportStatus::Failed) {
+		mythos::LogWarn("legacy settings import failed; defaults or existing settings in use: " + importDetail_);
+	}
 
 	switch (report_.source) {
-	case nova::ConfigSource::Loaded:
-		nova::LogInfo("settings loaded from " + path_.string());
+	case mythos::ConfigSource::Loaded:
+		mythos::LogInfo("settings loaded from " + path_.string());
 		break;
-	case nova::ConfigSource::Migrated:
-		nova::LogInfo("settings migrated to schema v" + std::to_string(nova::kConfigSchemaVersion));
+	case mythos::ConfigSource::Migrated:
+		mythos::LogInfo("settings migrated to schema v" + std::to_string(mythos::kConfigSchemaVersion));
 		dirty_ = true;
 		dirtySinceMs_ = 0;
 		break;
-	case nova::ConfigSource::RecoveredFromCorruption:
-		nova::LogWarn("corrupt settings backed up to " + report_.backupPath.string() +
+	case mythos::ConfigSource::RecoveredFromCorruption:
+		mythos::LogWarn("corrupt settings backed up to " + report_.backupPath.string() +
 		              "; defaults restored");
 		break;
-	case nova::ConfigSource::Defaults:
-		nova::LogInfo("settings defaults (" + report_.detail + ")");
+	case mythos::ConfigSource::Defaults:
+		mythos::LogInfo("settings defaults (" + report_.detail + ")");
 		break;
 	}
 }
 
 // Helper kept private via name convention (not part of the public API).
-void SettingsStore::Update(const std::function<void(nova::OverlayConfig&)>& mutate) {
+void SettingsStore::Update(const std::function<void(mythos::OverlayConfig&)>& mutate) {
 	std::lock_guard<std::mutex> lock(mutex_);
-	nova::OverlayConfig draft = config_;
+	mythos::OverlayConfig draft = config_;
 	mutate(draft);
-	nova::ClampOverlayConfig(draft);
+	mythos::ClampOverlayConfig(draft);
 	config_ = draft;
 	dirty_ = true;
 	saveFailed_ = false;
 	dirtySinceMs_ = 0; // set on the next Tick using the supplied clock
 }
 
-nova::OverlayConfig SettingsStore::Snapshot() const {
+mythos::OverlayConfig SettingsStore::Snapshot() const {
 	std::lock_guard<std::mutex> lock(mutex_);
 	return config_;
 }
@@ -75,34 +84,34 @@ void SettingsStore::Tick(uint64_t nowMs) {
 	if (nowMs - dirtySinceMs_ < kDebounceMs) return;
 
 	std::string error;
-	if (nova::SaveOverlayConfig(path_, config_, &error)) {
+	if (mythos::SaveOverlayConfig(path_, config_, &error)) {
 		dirty_ = false;
 		saveFailed_ = false;
 		dirtySinceMs_ = 0;
 		lastSaveMs_ = nowMs;
 		lastSaveClock_ = ClockText();
-		nova::LogInfo("settings saved");
+		mythos::LogInfo("settings saved");
 	} else {
 		dirty_ = false;
 		saveFailed_ = true;
 		dirtySinceMs_ = 0;
 		lastError_ = error;
-		nova::LogError("settings save failed: " + error);
+		mythos::LogError("settings save failed: " + error);
 	}
 }
 
 bool SettingsStore::Flush() {
 	std::lock_guard<std::mutex> lock(mutex_);
 	std::string error;
-	if (nova::SaveOverlayConfig(path_, config_, &error)) {
+	if (mythos::SaveOverlayConfig(path_, config_, &error)) {
 		dirty_ = false;
 		saveFailed_ = false;
 		lastSaveClock_ = ClockText();
-		nova::LogInfo("settings flushed on stop");
+		mythos::LogInfo("settings flushed on stop");
 		return true;
 	}
 	lastError_ = error;
-	nova::LogError("settings flush failed: " + error);
+	mythos::LogError("settings flush failed: " + error);
 	return false;
 }
 
@@ -110,14 +119,17 @@ std::string SettingsStore::StatusText() const {
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (saveFailed_) return "Save failed";
 	if (dirty_) return "Save pending";
+	if (importStatus_ == mythos::ConfigImportStatus::Imported) return "Imported NOVA settings";
+	if (importStatus_ == mythos::ConfigImportStatus::InvalidSource) return "Legacy NOVA settings invalid";
+	if (importStatus_ == mythos::ConfigImportStatus::Failed) return "Legacy settings import failed";
 	switch (report_.source) {
-	case nova::ConfigSource::Loaded:
+	case mythos::ConfigSource::Loaded:
 		return lastSaveClock_.empty() ? "Loaded from disk" : ("Saved " + lastSaveClock_);
-	case nova::ConfigSource::Migrated:
-		return "Migrated to schema v" + std::to_string(nova::kConfigSchemaVersion);
-	case nova::ConfigSource::RecoveredFromCorruption:
+	case mythos::ConfigSource::Migrated:
+		return "Migrated to schema v" + std::to_string(mythos::kConfigSchemaVersion);
+	case mythos::ConfigSource::RecoveredFromCorruption:
 		return "Recovered from corrupt file";
-	case nova::ConfigSource::Defaults:
+	case mythos::ConfigSource::Defaults:
 		return "Defaults in use";
 	}
 	return "Ready";
@@ -128,4 +140,4 @@ bool SettingsStore::savePending() const {
 	return dirty_;
 }
 
-} // namespace nova_host
+} // namespace mythos_host

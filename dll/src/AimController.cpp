@@ -8,10 +8,10 @@
 #include <cmath>
 #include <cstdio>
 
-namespace nova_host {
+namespace mythos_host {
 
-void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapshot& snapshot,
-                         const nova::AimConfig& config, const nova::ProjectionSettings& projection,
+void AimController::Tick(const mythos::WorldContext& world, const mythos::GameSnapshot& snapshot,
+                         const mythos::AimConfig& config, const mythos::ProjectionSettings& projection,
                          float screenWidth, float screenHeight) {
 	telemetry_.on = false;
 	telemetry_.hasTarget = false;
@@ -48,14 +48,14 @@ void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapsh
 	                                                                     : config.smooth));
 	const int boneMode = useSoft ? (config.softHeadOnly ? 0 : config.boneMode) : config.boneMode;
 
-	nova::AimSelectionSettings selection;
+	mythos::AimSelectionSettings selection;
 	selection.fovPixels = fovPixels;
 	selection.boneMode = boneMode;
 	selection.visibleOnly = config.visibleOnly;
 	selection.ignoreTeam = config.ignoreTeam;
 
-	nova::AimTarget target;
-	if (!nova::SelectAimTarget(snapshot, projection, screenWidth, screenHeight, selection,
+	mythos::AimTarget target;
+	if (!mythos::SelectAimTarget(snapshot, projection, screenWidth, screenHeight, selection,
 	                           target)) {
 		telemetry_.status = "Aimbot: no target";
 		return;
@@ -65,15 +65,15 @@ void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapsh
 	telemetry_.targetScreen = target.screen;
 	telemetry_.crosshairPixels = target.crosshairPixels;
 
-	nova::FRotator current;
+	mythos::FRotator current;
 	if (!ReadControlRotation(world.playerController, current)) {
 		telemetry_.status = "Aimbot: read ControlRotation failed";
 		return;
 	}
 
-	const nova::FRotator want = nova::CalcAngle(snapshot.camera.location, target.world);
+	const mythos::FRotator want = mythos::CalcAngle(snapshot.camera.location, target.world);
 	const double stepCap = useSoft ? 180.0 : static_cast<double>(config.maxStep);
-	const nova::FRotator step = nova::ComputeAimStep(current, want, smoothing, stepCap);
+	const mythos::FRotator step = mythos::ComputeAimStep(current, want, smoothing, stepCap);
 	telemetry_.stepYaw = step.yaw;
 	telemetry_.stepPitch = step.pitch;
 
@@ -88,7 +88,7 @@ void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapsh
 	case 2: {
 		// Same capped step as the other methods: the legacy write must never
 		// be able to spin the view.
-		nova::FRotator capped;
+		mythos::FRotator capped;
 		capped.pitch = current.pitch + step.pitch;
 		capped.yaw = current.yaw + step.yaw;
 		capped.roll = 0.0;
@@ -128,14 +128,14 @@ void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapsh
 }
 
 bool AimController::ReadControlRotation(uintptr_t playerController,
-                                        nova::FRotator& rotation) const {
-	rotation = nova::FRotator{};
-	if (!nova::IsPlausiblePointer(playerController)) return false;
-	if (!memory_.readRaw<nova::FRotator>(
+                                        mythos::FRotator& rotation) const {
+	rotation = mythos::FRotator{};
+	if (!mythos::IsPlausiblePointer(playerController)) return false;
+	if (!memory_.readRaw<mythos::FRotator>(
 	        playerController + Offsets::Aim::ControlRotation, rotation)) {
 		return false;
 	}
 	return rotation.finite();
 }
 
-} // namespace nova_host
+} // namespace mythos_host

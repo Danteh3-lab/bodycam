@@ -6,10 +6,10 @@
 // cached per asset pointer and cleared on map transitions.
 // ============================================================================
 #pragma once
-#include "nova/Diagnostics.hpp"
-#include "nova/NamePool.hpp"
-#include "nova/ReadOnlyMemory.hpp"
-#include "nova/UnrealTypes.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include "Offsets.hpp"
 
@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace nova {
+namespace mythos {
 
 struct SkeletonInfo {
 	std::vector<int32_t> parents;    // index -> parent index (-1 for root)
@@ -72,4 +72,4 @@ private:
 [[nodiscard]] bool MeshBelongsToPawn(const ReadOnlyMemory& memory, uintptr_t pawn,
                                       const FTransform& componentToWorld);
 
-} // namespace nova
+} // namespace mythos

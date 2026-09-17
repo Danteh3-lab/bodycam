@@ -1,5 +1,5 @@
 // ============================================================================
-// Logging — bounded local logs under %LOCALAPPDATA%\NOVA\logs.
+// Logging — bounded local logs under %LOCALAPPDATA%\MYTHOS\logs.
 //
 // Records lifecycle stages, timings, failures and build fingerprints. Never
 // player names or gameplay data (callers must not pass them).
@@ -10,7 +10,7 @@
 #include <mutex>
 #include <string>
 
-namespace nova {
+namespace mythos {
 
 enum class LogLevel {
 	Debug,
@@ -25,7 +25,7 @@ class Logger {
 public:
 	static Logger& Instance();
 
-	// Opens (or rotates) nova.log inside `directory`. `buildFingerprint` is
+	// Opens (or rotates) mythos.log inside `directory`. `buildFingerprint` is
 	// written once as the session header.
 	bool Open(const std::filesystem::path& directory, const std::string& buildFingerprint);
 	void Close();
@@ -37,7 +37,7 @@ public:
 
 	[[nodiscard]] static std::filesystem::path DefaultLogDirectory();
 
-	// Bounded output: rotate to nova.log.1 once the file exceeds this size.
+	// Bounded output: rotate to mythos.log.1 once the file exceeds this size.
 	static constexpr std::uintmax_t kMaxLogBytes = 512 * 1024;
 
 private:
@@ -60,4 +60,4 @@ void LogInfo(const std::string& message);
 void LogWarn(const std::string& message);
 void LogError(const std::string& message);
 
-} // namespace nova
+} // namespace mythos

@@ -1,14 +1,14 @@
 #include "VisCheck.hpp"
 
 #include "Offsets.hpp"
-#include "nova/NativeFunctionSignature.hpp"
+#include "mythos/NativeFunctionSignature.hpp"
 
 #include <Windows.h>
 
 #include <cstdio>
 #include <cstring>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 constexpr std::size_t kMaxCacheEntries = 64;
@@ -25,13 +25,13 @@ __declspec(noinline) bool SafeProcessEvent(ProcessEventFn function, void* self, 
 	}
 }
 
-bool ReadUInt64(const nova::ReadOnlyMemory& memory, uintptr_t address, uint64_t& out) {
+bool ReadUInt64(const mythos::ReadOnlyMemory& memory, uintptr_t address, uint64_t& out) {
 	return memory.readRaw<uint64_t>(address, out);
 }
 
 } // namespace
 
-VisCheck::VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names)
+VisCheck::VisCheck(const mythos::ReadOnlyMemory& memory, const mythos::NamePool& names)
 	: memory_(memory), names_(names) {
 	status_.maxTries = Offsets::VisCheck::MaxTries;
 }
@@ -80,7 +80,7 @@ void VisCheck::Tick(uintptr_t playerController) {
 		return;
 	}
 
-	if (nova::IsPlausiblePointer(playerController)) {
+	if (mythos::IsPlausiblePointer(playerController)) {
 		if (playerController_ != 0 && playerController != playerController_) {
 			ResetResolution();
 			status_.message = "controller changed; re-resolving vischeck";
@@ -88,7 +88,7 @@ void VisCheck::Tick(uintptr_t playerController) {
 		playerController_ = playerController;
 	}
 
-	if (status_.ready || !nova::IsPlausiblePointer(playerController)) return;
+	if (status_.ready || !mythos::IsPlausiblePointer(playerController)) return;
 
 	const uint64_t now = GetTickCount64();
 	if (tries_ >= Offsets::VisCheck::MaxTries) return;
@@ -116,7 +116,7 @@ void VisCheck::Resolve(uintptr_t playerController) {
 
 	uintptr_t cls = 0;
 	if (!memory_.readPointer(playerController + Offsets::UObject::Class, cls) ||
-	    !nova::IsPlausiblePointer(cls)) {
+	    !mythos::IsPlausiblePointer(cls)) {
 		status_.message = "local PlayerController class unavailable";
 		return;
 	}
@@ -154,7 +154,7 @@ void VisCheck::SetReadyMessage() {
 		(base != 0 && processEvent_ >= base) ? processEvent_ - base : 0;
 	char buffer[256] = {};
 	std::snprintf(buffer, sizeof(buffer),
-	              "%s via ProcessEvent on NOVA worker (ProcessEvent verified at RVA 0x%08llX; "
+	              "%s via ProcessEvent on MYTHOS worker (ProcessEvent verified at RVA 0x%08llX; "
 	              "unsafe direct call; params 0x%X)",
 	              method_ == Method::LineOfSight ? "LineOfSightTo"
 	                                             : "WasRecentlyRendered (render state)",
@@ -178,13 +178,13 @@ bool VisCheck::IsExecutable(uintptr_t address, std::size_t size) const {
 }
 
 bool VisCheck::VerifyProcessEvent(uintptr_t function) const {
-	if (function == 0 || !IsExecutable(function, nova::kVerifiedNativePrologueSize)) {
+	if (function == 0 || !IsExecutable(function, mythos::kVerifiedNativePrologueSize)) {
 		return false;
 	}
 
-	uint8_t bytes[nova::kVerifiedNativePrologueSize] = {};
+	uint8_t bytes[mythos::kVerifiedNativePrologueSize] = {};
 	if (!memory_.read(function, bytes, sizeof(bytes))) return false;
-	return nova::MatchesVerifiedNativePrologue(bytes, sizeof(bytes));
+	return mythos::MatchesVerifiedNativePrologue(bytes, sizeof(bytes));
 }
 
 uintptr_t VisCheck::ResolveProcessEvent(uintptr_t base, uintptr_t playerController) const {
@@ -193,15 +193,15 @@ uintptr_t VisCheck::ResolveProcessEvent(uintptr_t base, uintptr_t playerControll
 	// that function must match the verified 31-byte prologue. No speculative
 	// slots and no "any executable address" fallback.
 	const uintptr_t rvaCandidate = base + Offsets::EngineCalls::ProcessEvent;
-	if (!IsExecutable(rvaCandidate, nova::kVerifiedNativePrologueSize)) {
+	if (!IsExecutable(rvaCandidate, mythos::kVerifiedNativePrologueSize)) {
 		status_.message = "ProcessEvent RVA outside the executable image";
 		return 0;
 	}
 
 	uintptr_t vtable = 0;
-	if (!nova::IsPlausiblePointer(playerController) ||
+	if (!mythos::IsPlausiblePointer(playerController) ||
 	    !memory_.readPointer(playerController, vtable) ||
-	    !nova::IsPlausiblePointer(vtable)) {
+	    !mythos::IsPlausiblePointer(vtable)) {
 		status_.message = "ProcessEvent vtable slot unreadable";
 		return 0;
 	}
@@ -332,15 +332,15 @@ bool VisCheck::ReadParamLayout(uintptr_t function, ParamLayout& layout, Method m
 	return true;
 }
 
-bool VisCheck::Query(uintptr_t pawn, const nova::FVector& cameraLocation) const {
-	if (!nova::IsPlausiblePointer(playerController_) || !nova::IsPlausiblePointer(pawn)) {
+bool VisCheck::Query(uintptr_t pawn, const mythos::FVector& cameraLocation) const {
+	if (!mythos::IsPlausiblePointer(playerController_) || !mythos::IsPlausiblePointer(pawn)) {
 		return true;
 	}
 	if (processEvent_ == 0 || function_ == 0) return true;
 	if (!engineCallsEnabled_) return true;
 
 	// Reference-compatible execution: ProcessEvent is invoked synchronously
-	// from NOVA's worker thread. This is intentionally unsafe and therefore
+	// from MYTHOS's worker thread. This is intentionally unsafe and therefore
 	// remains behind the explicit owner opt-in. The reflected layout checks
 	// above bound every write, and SEH keeps a fault fail-open.
 	alignas(8) uint8_t buffer[Offsets::VisCheck::MaxParams] = {};
@@ -374,7 +374,7 @@ bool VisCheck::Query(uintptr_t pawn, const nova::FVector& cameraLocation) const 
 	return (buffer[static_cast<std::size_t>(layout.ret)] & layout.retMask) != 0;
 }
 
-bool VisCheck::IsVisible(uintptr_t pawn, const nova::FVector& cameraLocation) const {
+bool VisCheck::IsVisible(uintptr_t pawn, const mythos::FVector& cameraLocation) const {
 	if (pawn == 0) return true;
 	if (!status_.ready) return true;
 
@@ -399,4 +399,4 @@ bool VisCheck::IsVisible(uintptr_t pawn, const nova::FVector& cameraLocation) co
 	return visible;
 }
 
-} // namespace nova_host
+} // namespace mythos_host

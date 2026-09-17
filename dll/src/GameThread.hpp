@@ -26,7 +26,7 @@
 #include <mutex>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 // Bounded wait for one game-thread task. Small enough that a stalled path
 // disables engine calls without disturbing the 60 Hz worker.
@@ -89,4 +89,4 @@ private:
 	std::string message_ = "game-thread path not initialized";
 };
 
-} // namespace nova_host
+} // namespace mythos_host

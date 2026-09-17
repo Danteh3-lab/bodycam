@@ -4,17 +4,24 @@
 
 #include <array>
 
-namespace nova_host::platform {
+namespace mythos_host::platform {
 
 std::filesystem::path LocalAppDataDirectory() {
 	wchar_t buffer[MAX_PATH] = {};
 	const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
-	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"NOVA");
-	return std::filesystem::path(buffer) / L"NOVA";
+	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"MYTHOS");
+	return std::filesystem::path(buffer) / L"MYTHOS";
 }
 
 std::filesystem::path SettingsPath() {
 	return LocalAppDataDirectory() / L"settings.json";
+}
+
+std::filesystem::path LegacySettingsPath() {
+	wchar_t buffer[MAX_PATH] = {};
+	const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
+	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"NOVA") / L"settings.json";
+	return std::filesystem::path(buffer) / L"NOVA" / L"settings.json";
 }
 
 std::filesystem::path LogDirectory() {
@@ -62,4 +69,4 @@ uint64_t MonotonicMilliseconds() {
 	return static_cast<uint64_t>(GetTickCount64());
 }
 
-} // namespace nova_host::platform
+} // namespace mythos_host::platform

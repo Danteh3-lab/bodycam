@@ -1,13 +1,13 @@
-#include "nova/WorldResolver.hpp"
+#include "mythos/WorldResolver.hpp"
 
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 uint32_t ElapsedMs(std::chrono::steady_clock::time_point start) {
@@ -583,4 +583,4 @@ bool WorldResolver::ReanchorScanChunk(void* context, uintptr_t address, const ui
 	return false;
 }
 
-} // namespace nova
+} // namespace mythos

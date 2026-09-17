@@ -3,7 +3,7 @@
 #include <chrono>
 #include <utility>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 constexpr unsigned kProbeTimeoutMs = 300;
@@ -41,7 +41,7 @@ void GameThreadExecutor::Initialize(HWND targetWindow) {
 		return;
 	}
 	if (threadId == GetCurrentThreadId()) {
-		SetMessage("target window is owned by NOVA");
+		SetMessage("target window is owned by MYTHOS");
 		return;
 	}
 
@@ -148,4 +148,4 @@ void GameThreadExecutor::DrainOnGameThread() {
 	finished_.notify_all();
 }
 
-} // namespace nova_host
+} // namespace mythos_host

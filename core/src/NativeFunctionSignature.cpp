@@ -1,8 +1,8 @@
-#include "nova/NativeFunctionSignature.hpp"
+#include "mythos/NativeFunctionSignature.hpp"
 
 #include <cstring>
 
-namespace nova {
+namespace mythos {
 
 bool MatchesVerifiedNativePrologue(const uint8_t* bytes, std::size_t size) {
 	if (bytes == nullptr || size < Offsets::Signatures::NativeFunctionPrologueSize) {
@@ -12,4 +12,4 @@ bool MatchesVerifiedNativePrologue(const uint8_t* bytes, std::size_t size) {
 	                   Offsets::Signatures::NativeFunctionPrologueSize) == 0;
 }
 
-} // namespace nova
+} // namespace mythos

@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 struct BuildIdentity {
 	std::wstring modulePath;
@@ -28,4 +28,4 @@ struct BuildIdentity {
 
 [[nodiscard]] std::string BuildFingerprintString(const BuildIdentity& identity);
 
-} // namespace nova_host
+} // namespace mythos_host

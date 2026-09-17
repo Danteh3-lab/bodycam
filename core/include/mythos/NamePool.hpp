@@ -2,12 +2,12 @@
 // NamePool — FNamePool resolution and FName decoding (read-only).
 // ============================================================================
 #pragma once
-#include "nova/ReadOnlyMemory.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
 
 #include <cstddef>
 #include <cstdint>
 
-namespace nova {
+namespace mythos {
 
 class NamePool {
 public:
@@ -51,4 +51,4 @@ private:
 [[nodiscard]] uintptr_t MatchNamePoolSignature(const ReadOnlyMemory& memory,
                                                const uint8_t* data, size_t size, uintptr_t address);
 
-} // namespace nova
+} // namespace mythos

@@ -6,13 +6,13 @@
 // never blocks the render loop and never runs unbounded work on one call.
 // ============================================================================
 #pragma once
-#include "nova/ReadOnlyMemory.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
-namespace nova {
+namespace mythos {
 
 class ModuleScanner {
 public:
@@ -53,4 +53,4 @@ private:
 	int sectionCount_ = 0;
 };
 
-} // namespace nova
+} // namespace mythos

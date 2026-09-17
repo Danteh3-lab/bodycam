@@ -3,11 +3,11 @@
 // Pure functions: no game memory, no rendering dependency, fully testable.
 // ============================================================================
 #pragma once
-#include "nova/UnrealTypes.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include "Offsets.hpp"
 
-namespace nova {
+namespace mythos {
 
 enum class AspectAxis : uint8_t {
 	MaintainYFOV = 0,
@@ -61,4 +61,4 @@ struct ProjectionMultipliers {
 // renderer's basis construction.
 void BuildCameraBasis(const FRotator& rotation, FVector& forward, FVector& right, FVector& up);
 
-} // namespace nova
+} // namespace mythos

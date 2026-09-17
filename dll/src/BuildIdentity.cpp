@@ -6,7 +6,7 @@
 #include <cstring>
 #include <vector>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 std::wstring ModulePath() {
@@ -122,4 +122,4 @@ std::string BuildFingerprintString(const BuildIdentity& identity) {
 	return text;
 }
 
-} // namespace nova_host
+} // namespace mythos_host

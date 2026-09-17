@@ -1,22 +1,22 @@
 // ============================================================================
 // FakeMemory — deterministic read-only memory fixture for tests.
 //
-// Implements nova::ReadOnlyMemory over plain byte regions. The write helpers
+// Implements mythos::ReadOnlyMemory over plain byte regions. The write helpers
 // below are test-only fixture code; the production interface remains
 // read-only. Reads crossing a region boundary fail, which lets tests exercise
 // the guarded-read contract without touching a real process.
 // ============================================================================
 #pragma once
-#include "nova/ReadOnlyMemory.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
 
-namespace novatest {
+namespace mythostest {
 
-class FakeMemory final : public nova::ReadOnlyMemory {
+class FakeMemory final : public mythos::ReadOnlyMemory {
 public:
 	explicit FakeMemory(uintptr_t moduleBase = 0x140000000ull,
 	                    size_t moduleSize = 0x0A000000ull)
@@ -26,8 +26,8 @@ public:
 		  // in fabricated signatures stay representable, like the real game.
 		  nextHeap_(moduleBase + 0x40000000ull) {}
 
-	[[nodiscard]] nova::ModuleInfo module() const override {
-		nova::ModuleInfo info;
+	[[nodiscard]] mythos::ModuleInfo module() const override {
+		mythos::ModuleInfo info;
 		info.base = moduleBase_;
 		info.size = moduleSize_;
 		info.name = L"Bodycam-Win64-Shipping.exe";
@@ -36,7 +36,7 @@ public:
 
 	[[nodiscard]] bool read(uintptr_t address, void* out, size_t size) const override {
 		if (out == nullptr || size == 0) return false;
-		if (!nova::IsPlausibleRange(address, size)) return false;
+		if (!mythos::IsPlausibleRange(address, size)) return false;
 
 		for (const Region& region : regions_) {
 			if (address < region.base) continue;
@@ -48,11 +48,11 @@ public:
 		return false;
 	}
 
-	int sections(bool executable, nova::SectionRange* out, int maxOut) const override {
+	int sections(bool executable, mythos::SectionRange* out, int maxOut) const override {
 		if (out == nullptr || maxOut <= 0) return 0;
-		const std::vector<nova::SectionRange>& source = executable ? execSections_ : dataSections_;
+		const std::vector<mythos::SectionRange>& source = executable ? execSections_ : dataSections_;
 		int count = 0;
-		for (const nova::SectionRange& section : source) {
+		for (const mythos::SectionRange& section : source) {
 			if (count >= maxOut) break;
 			out[count++] = section;
 		}
@@ -77,11 +77,11 @@ public:
 	}
 
 	void AddSection(uintptr_t start, size_t size, bool executable, bool writable) {
-		nova::SectionRange section;
+		mythos::SectionRange section;
 		section.start = start;
 		section.size = size;
-		if (executable) section.characteristics |= nova::SectionRange::kImageScnMemExecute;
-		if (writable) section.characteristics |= nova::SectionRange::kImageScnMemWrite;
+		if (executable) section.characteristics |= mythos::SectionRange::kImageScnMemExecute;
+		if (writable) section.characteristics |= mythos::SectionRange::kImageScnMemWrite;
 		if (executable) {
 			execSections_.push_back(section);
 		} else {
@@ -127,11 +127,11 @@ private:
 	};
 
 	std::vector<Region> regions_;
-	std::vector<nova::SectionRange> execSections_;
-	std::vector<nova::SectionRange> dataSections_;
+	std::vector<mythos::SectionRange> execSections_;
+	std::vector<mythos::SectionRange> dataSections_;
 	uintptr_t moduleBase_ = 0;
 	size_t moduleSize_ = 0;
 	uintptr_t nextHeap_ = 0;
 };
 
-} // namespace novatest
+} // namespace mythostest

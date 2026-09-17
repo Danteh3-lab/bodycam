@@ -1,9 +1,9 @@
-add_library(NOVA SHARED
+add_library(MYTHOS SHARED
   src/dllmain.cpp
   src/Runtime.cpp
   src/OverlayWindow.cpp
   src/EspRenderer.cpp
-  src/NovaUi.cpp
+  src/MythosUi.cpp
   src/Theme.cpp
   src/Particles.cpp
   src/SettingsStore.cpp
@@ -15,16 +15,16 @@ add_library(NOVA SHARED
   src/VisCheck.cpp
   src/AimController.cpp
 )
-add_library(nova::dll ALIAS NOVA)
+add_library(mythos::dll ALIAS MYTHOS)
 
-set_target_properties(NOVA PROPERTIES
-  OUTPUT_NAME "NOVA"
+set_target_properties(MYTHOS PROPERTIES
+  OUTPUT_NAME "MYTHOS"
   PREFIX ""
 )
 
-target_link_libraries(NOVA PRIVATE
-  nova_core
-  nova_imgui
+target_link_libraries(MYTHOS PRIVATE
+  mythos_core
+  mythos_imgui
   d3d11
   dxgi
   dwmapi
@@ -35,4 +35,4 @@ target_link_libraries(NOVA PRIVATE
   version
 )
 
-nova_apply_project_settings(NOVA)
+mythos_apply_project_settings(MYTHOS)

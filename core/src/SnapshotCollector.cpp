@@ -1,7 +1,7 @@
-#include "nova/SnapshotCollector.hpp"
+#include "mythos/SnapshotCollector.hpp"
 
-#include "nova/Skeleton.hpp"
-#include "nova/UnrealTypes.hpp"
+#include "mythos/Skeleton.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <Windows.h>
 
@@ -9,7 +9,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 constexpr size_t kMaxClassKinds = 256;
@@ -431,4 +431,4 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 	return snapshot;
 }
 
-} // namespace nova
+} // namespace mythos

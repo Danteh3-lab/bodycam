@@ -14,7 +14,7 @@
 #include <atomic>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 class OverlayWindow {
 public:
@@ -77,7 +77,7 @@ private:
 	Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain_;
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget_;
 
-	static constexpr const wchar_t* kWindowClass = L"NOVA.Overlay.Window";
+	static constexpr const wchar_t* kWindowClass = L"MYTHOS.Overlay.Window";
 };
 
-} // namespace nova_host
+} // namespace mythos_host

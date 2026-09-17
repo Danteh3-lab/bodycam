@@ -4,17 +4,17 @@
 #include "fake_names.h"
 
 #include "Offsets.hpp"
-#include "nova/NamePool.hpp"
+#include "mythos/NamePool.hpp"
 
 #include <cstring>
 
-NOVA_TEST(NamePoolResolvesNarrowAndWide) {
-	novatest::FakeMemory memory;
-	novatest::FakeNamePool builder(memory);
+MYTHOS_TEST(NamePoolResolvesNarrowAndWide) {
+	mythostest::FakeMemory memory;
+	mythostest::FakeNamePool builder(memory);
 	const uint32_t character = builder.AddName("BP_Character_C");
 	const uint32_t wide = builder.AddWideName(L"WideName");
 
-	nova::NamePool names(memory);
+	mythos::NamePool names(memory);
 	CHECK(names.Attach(builder.address()));
 	CHECK(names.ready());
 
@@ -29,12 +29,12 @@ NOVA_TEST(NamePoolResolvesNarrowAndWide) {
 	CHECK_EQ(std::strcmp(buffer, "WideName"), 0);
 }
 
-NOVA_TEST(NamePoolRejectsBadIndexesAndPools) {
-	novatest::FakeMemory memory;
-	novatest::FakeNamePool builder(memory);
+MYTHOS_TEST(NamePoolRejectsBadIndexesAndPools) {
+	mythostest::FakeMemory memory;
+	mythostest::FakeNamePool builder(memory);
 	builder.AddName("Player");
 
-	nova::NamePool names(memory);
+	mythos::NamePool names(memory);
 	CHECK(!names.ready());
 	CHECK(names.Attach(builder.address()));
 	CHECK(names.ready());
@@ -44,19 +44,19 @@ NOVA_TEST(NamePoolRejectsBadIndexesAndPools) {
 	CHECK(!names.Resolve(0x00FFFFFFu, buffer, sizeof(buffer)));
 	CHECK(!names.Resolve(0xFFFF0000u, buffer, sizeof(buffer)));
 
-	CHECK(!nova::NamePool::IsCertain(memory, 0));
-	nova::NamePool unattached(memory);
+	CHECK(!mythos::NamePool::IsCertain(memory, 0));
+	mythos::NamePool unattached(memory);
 	CHECK(!unattached.ready());
 	CHECK(!unattached.Resolve(0, buffer, sizeof(buffer)));
 }
 
-NOVA_TEST(NamePoolObjectHelpers) {
-	novatest::FakeMemory memory;
-	novatest::FakeNamePool builder(memory);
+MYTHOS_TEST(NamePoolObjectHelpers) {
+	mythostest::FakeMemory memory;
+	mythostest::FakeNamePool builder(memory);
 	const uint32_t className = builder.AddName("BP_Character_C");
 	const uint32_t objectName = builder.AddName("MyPawn");
 
-	nova::NamePool names(memory);
+	mythos::NamePool names(memory);
 	CHECK(names.Attach(builder.address()));
 
 	const uintptr_t classObject = memory.AddRegion(0x800000, 0x40);
@@ -76,17 +76,17 @@ NOVA_TEST(NamePoolObjectHelpers) {
 	CHECK(!names.ReadClassName(0xDEAD0000, buffer, sizeof(buffer)));
 }
 
-NOVA_TEST(ContainsCaseInsensitiveMatches) {
-	CHECK(nova::ContainsCaseInsensitive("BP_Character_C", "character"));
-	CHECK(nova::ContainsCaseInsensitive("DRONE_A", "drone"));
-	CHECK(!nova::ContainsCaseInsensitive("BP_Character_C", "vehicle"));
-	CHECK(!nova::ContainsCaseInsensitive(nullptr, "x"));
-	CHECK(!nova::ContainsCaseInsensitive("abc", ""));
+MYTHOS_TEST(ContainsCaseInsensitiveMatches) {
+	CHECK(mythos::ContainsCaseInsensitive("BP_Character_C", "character"));
+	CHECK(mythos::ContainsCaseInsensitive("DRONE_A", "drone"));
+	CHECK(!mythos::ContainsCaseInsensitive("BP_Character_C", "vehicle"));
+	CHECK(!mythos::ContainsCaseInsensitive(nullptr, "x"));
+	CHECK(!mythos::ContainsCaseInsensitive("abc", ""));
 }
 
-NOVA_TEST(NamePoolSignatureMatcher) {
-	novatest::FakeMemory memory;
-	novatest::FakeNamePool builder(memory);
+MYTHOS_TEST(NamePoolSignatureMatcher) {
+	mythostest::FakeMemory memory;
+	mythostest::FakeNamePool builder(memory);
 
 	const uintptr_t code = memory.AddRegion(0x140000000ull + 0x1000, 0x200);
 	memory.AddSection(code, 0x200, true, false);
@@ -110,12 +110,12 @@ NOVA_TEST(NamePoolSignatureMatcher) {
 	std::memcpy(pattern + 14, &relative2, sizeof(relative2));
 	memory.Write(patternAddress, pattern, sizeof(pattern));
 
-	const uintptr_t found = nova::MatchNamePoolSignature(
+	const uintptr_t found = mythos::MatchNamePoolSignature(
 		memory, pattern, sizeof(pattern), patternAddress);
 	CHECK_EQ(found, builder.address());
 
 	// A pattern whose two LEAs disagree must not match.
 	pattern[16] = 0x01;
 	memory.Write(patternAddress, pattern, sizeof(pattern));
-	CHECK_EQ(nova::MatchNamePoolSignature(memory, pattern, sizeof(pattern), patternAddress), 0u);
+	CHECK_EQ(mythos::MatchNamePoolSignature(memory, pattern, sizeof(pattern), patternAddress), 0u);
 }

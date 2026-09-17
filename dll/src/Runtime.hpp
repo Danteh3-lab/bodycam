@@ -1,5 +1,5 @@
 // ============================================================================
-// Runtime — NOVA's lifecycle and state machine.
+// Runtime — MYTHOS's lifecycle and state machine.
 //
 // States: Starting -> WaitingForWindow -> Resolving -> Ready, plus
 // OffsetsInvalid and Stopping. A 60 Hz worker samples the read-only world and
@@ -13,17 +13,17 @@
 #include "EngineCalls.hpp"
 #include "EspRenderer.hpp"
 #include "GameThread.hpp"
-#include "NovaUi.hpp"
+#include "MythosUi.hpp"
 #include "OverlayWindow.hpp"
 #include "ProcessMemory.hpp"
 #include "SettingsStore.hpp"
 #include "VisCheck.hpp"
 
-#include "nova/Config.hpp"
-#include "nova/NamePool.hpp"
-#include "nova/RuntimeDiagnostics.hpp"
-#include "nova/SnapshotCollector.hpp"
-#include "nova/WorldResolver.hpp"
+#include "mythos/Config.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/RuntimeDiagnostics.hpp"
+#include "mythos/SnapshotCollector.hpp"
+#include "mythos/WorldResolver.hpp"
 
 #include <Windows.h>
 
@@ -33,7 +33,7 @@
 #include <string>
 #include <thread>
 
-namespace nova_host {
+namespace mythos_host {
 
 class Runtime {
 public:
@@ -53,10 +53,10 @@ public:
 
 private:
 	struct PublishedFrame {
-		nova::GameSnapshotPtr snapshot;
-		nova::RuntimeDiagnostics diagnostics;
-		nova::ResolverDiagnostics resolver;
-		nova::CollectionDiagnostics collection;
+		mythos::GameSnapshotPtr snapshot;
+		mythos::RuntimeDiagnostics diagnostics;
+		mythos::ResolverDiagnostics resolver;
+		mythos::CollectionDiagnostics collection;
 		AimTelemetry aim;
 		EngineCalls::Status engineCalls;
 		VisCheck::Status vischeck;
@@ -72,9 +72,9 @@ private:
 	[[nodiscard]] PublishedFrame AcquireFrame() const;
 
 	[[nodiscard]] static HWND FindTargetWindow(DWORD processId);
-	[[nodiscard]] static nova::CaptureSettings ToCaptureSettings(const nova::OverlayConfig& config);
-	[[nodiscard]] nova::RuntimeState EvaluateState(const nova::WorldContext& world,
-	                                               const nova::GameSnapshot& snapshot) const;
+	[[nodiscard]] static mythos::CaptureSettings ToCaptureSettings(const mythos::OverlayConfig& config);
+	[[nodiscard]] mythos::RuntimeState EvaluateState(const mythos::WorldContext& world,
+	                                               const mythos::GameSnapshot& snapshot) const;
 
 	std::atomic<bool> stop_{ false };
 	bool shutdownDone_ = false;
@@ -82,12 +82,12 @@ private:
 	HWND targetWindow_ = nullptr;
 
 	ProcessMemory memory_;
-	std::unique_ptr<nova::NamePool> names_;
-	std::unique_ptr<nova::WorldResolver> resolver_;
+	std::unique_ptr<mythos::NamePool> names_;
+	std::unique_ptr<mythos::WorldResolver> resolver_;
 	std::unique_ptr<GameThreadExecutor> gameThread_;
 	std::unique_ptr<EngineCalls> engineCalls_;
 	std::unique_ptr<VisCheck> vischeck_;
-	std::unique_ptr<nova::SnapshotCollector> collector_;
+	std::unique_ptr<mythos::SnapshotCollector> collector_;
 	std::unique_ptr<AimController> aim_;
 	std::unique_ptr<OverlayWindow> overlay_;
 
@@ -96,11 +96,11 @@ private:
 
 	SettingsStore settings_;
 	EspRenderer esp_;
-	NovaUi ui_;
+	MythosUi ui_;
 	UiState uiState_;
 
 	BuildIdentity identity_;
-	nova::BoneCounters renderBones_;
+	mythos::BoneCounters renderBones_;
 
 	mutable std::mutex frameMutex_;
 	PublishedFrame published_;
@@ -110,11 +110,11 @@ private:
 	bool everReady_ = false;
 	bool recovering_ = false;
 	int  notReadyStreak_ = 0;
-	nova::RuntimeState lastLoggedState_ = nova::RuntimeState::Starting;
+	mythos::RuntimeState lastLoggedState_ = mythos::RuntimeState::Starting;
 	bool stateLogged_ = false;
 	bool worldLogged_ = false;
 	bool namesLogged_ = false;
 	std::string lastVischeckMessage_;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

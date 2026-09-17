@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace nova {
+namespace mythos {
 
 struct Vec2d {
 	double x = 0.0;
@@ -129,4 +129,4 @@ inline constexpr double kMaxWorldCoordCm = 1.0e7;
 // be considered part of the pawn.
 inline constexpr double kMaxMeshOffsetCm = 500.0;
 
-} // namespace nova
+} // namespace mythos

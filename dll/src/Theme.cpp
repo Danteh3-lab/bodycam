@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-namespace nova_host::theme {
+namespace mythos_host::theme {
 namespace {
 
 FontSet g_fonts;
@@ -44,19 +44,22 @@ void Apply() {
 	c[ImGuiCol_TextDisabled] = ToVec4(kTextDim);
 	c[ImGuiCol_WindowBg] = ToVec4(kSurface0);
 	c[ImGuiCol_ChildBg] = ToVec4(kSurface1);
-	c[ImGuiCol_PopupBg] = ImVec4(0.075f, 0.083f, 0.098f, 0.97f);
+	ImVec4 popup = ToVec4(kSurface1);
+	popup.w = 0.97f;
+	c[ImGuiCol_PopupBg] = popup;
 	c[ImGuiCol_Border] = ToVec4(kBorder);
 	c[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 	c[ImGuiCol_FrameBg] = ToVec4(kSurface2);
 	c[ImGuiCol_FrameBgHovered] = ToVec4(kSurface3);
-	c[ImGuiCol_FrameBgActive] = ImVec4(0.17f, 0.19f, 0.22f, 1.0f);
+	c[ImGuiCol_FrameBgActive] = ToVec4(kSurface3);
 	c[ImGuiCol_TitleBg] = ToVec4(kSurface0);
 	c[ImGuiCol_TitleBgActive] = ToVec4(kSurface0);
 	c[ImGuiCol_TitleBgCollapsed] = ToVec4(kSurface0);
 	c[ImGuiCol_MenuBarBg] = ToVec4(kSurface1);
-	c[ImGuiCol_ScrollbarBg] = ImVec4(0.05f, 0.055f, 0.065f, 0.6f);
-	c[ImGuiCol_ScrollbarGrab] = ImVec4(0.20f, 0.22f, 0.25f, 1.0f);
-	c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.27f, 0.30f, 0.34f, 1.0f);
+	c[ImGuiCol_ScrollbarBg] = ToVec4(kSurface0);
+	c[ImGuiCol_ScrollbarBg].w = 0.6f;
+	c[ImGuiCol_ScrollbarGrab] = ToVec4(kSurface2);
+	c[ImGuiCol_ScrollbarGrabHovered] = ToVec4(kSurface3);
 	c[ImGuiCol_ScrollbarGrabActive] = ToVec4(kAccentDim);
 	c[ImGuiCol_CheckMark] = ToVec4(kAccent);
 	c[ImGuiCol_SliderGrab] = ToVec4(kAccentDim);
@@ -64,9 +67,9 @@ void Apply() {
 	c[ImGuiCol_Button] = ToVec4(kSurface2);
 	c[ImGuiCol_ButtonHovered] = ToVec4(kSurface3);
 	c[ImGuiCol_ButtonActive] = ToVec4(kAccentDim);
-	c[ImGuiCol_Header] = ImVec4(0.10f, 0.12f, 0.14f, 1.0f);
-	c[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.18f, 0.21f, 1.0f);
-	c[ImGuiCol_HeaderActive] = ImVec4(0.20f, 0.23f, 0.26f, 1.0f);
+	c[ImGuiCol_Header] = ToVec4(kSurface2);
+	c[ImGuiCol_HeaderHovered] = ToVec4(kSurface3);
+	c[ImGuiCol_HeaderActive] = ToVec4(kAccentDim);
 	c[ImGuiCol_Separator] = ToVec4(kBorder);
 	c[ImGuiCol_SeparatorHovered] = ToVec4(kAccentDim);
 	c[ImGuiCol_SeparatorActive] = ToVec4(kAccent);
@@ -75,20 +78,22 @@ void Apply() {
 	c[ImGuiCol_ResizeGripActive] = ToVec4(kAccent);
 	c[ImGuiCol_Tab] = ToVec4(kSurface1);
 	c[ImGuiCol_TabHovered] = ToVec4(kSurface3);
-	c[ImGuiCol_TabSelected] = ImVec4(0.13f, 0.15f, 0.18f, 1.0f);
+	c[ImGuiCol_TabSelected] = ToVec4(kSurface2);
 	c[ImGuiCol_TabSelectedOverline] = ToVec4(kAccent);
 	c[ImGuiCol_TabDimmed] = ToVec4(kSurface1);
-	c[ImGuiCol_TabDimmedSelected] = ImVec4(0.11f, 0.12f, 0.14f, 1.0f);
+	c[ImGuiCol_TabDimmedSelected] = ToVec4(kSurface1);
 	c[ImGuiCol_PlotLines] = ToVec4(kAccent);
 	c[ImGuiCol_PlotLinesHovered] = ToVec4(kAccent);
 	c[ImGuiCol_PlotHistogram] = ToVec4(kAccent);
 	c[ImGuiCol_PlotHistogramHovered] = ToVec4(kAccent);
 	c[ImGuiCol_TableHeaderBg] = ToVec4(kSurface1);
 	c[ImGuiCol_TableBorderStrong] = ToVec4(kBorder);
-	c[ImGuiCol_TableBorderLight] = ImVec4(0.22f, 0.24f, 0.27f, 0.5f);
+	c[ImGuiCol_TableBorderLight] = ToVec4(kBorder);
+	c[ImGuiCol_TableBorderLight].w = 0.5f;
 	c[ImGuiCol_TableRowBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 	c[ImGuiCol_TableRowBgAlt] = ImVec4(1.0f, 1.0f, 1.0f, 0.02f);
-	c[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 0.84f, 0.88f, 0.35f);
+	c[ImGuiCol_TextSelectedBg] = ToVec4(kAccentDim);
+	c[ImGuiCol_TextSelectedBg].w = 0.35f;
 	c[ImGuiCol_NavCursor] = ToVec4(kAccent);
 	c[ImGuiCol_DragDropTarget] = ToVec4(kAccent);
 	c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.45f);
@@ -133,4 +138,4 @@ void Pop() {
 	ImGui::PopFont();
 }
 
-} // namespace nova_host::theme
+} // namespace mythos_host::theme

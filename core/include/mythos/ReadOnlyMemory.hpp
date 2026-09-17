@@ -13,7 +13,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace nova {
+namespace mythos {
 
 // User-space plausibility window. Kernel addresses and low guard pages are
 // never dereferenced even if a game pointer is corrupt.
@@ -124,4 +124,4 @@ struct ArrayView {
 [[nodiscard]] bool ReadArrayElement(const ReadOnlyMemory& memory, const ArrayView& view,
                                     int index, uintptr_t& out);
 
-} // namespace nova
+} // namespace mythos

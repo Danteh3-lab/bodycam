@@ -1,5 +1,5 @@
 // ============================================================================
-// NovaUi — the five-section NOVA control panel.
+// MythosUi — the five-section MYTHOS control panel.
 //
 // Sections: Overview, Players, Visuals, Overlay, Diagnostics.
 // The header always shows search + clear, the master ESP toggle, the config
@@ -12,15 +12,15 @@
 #include "SettingsStore.hpp"
 #include "VisCheck.hpp"
 
-#include "nova/Config.hpp"
-#include "nova/Diagnostics.hpp"
-#include "nova/RuntimeDiagnostics.hpp"
-#include "nova/SnapshotCollector.hpp"
-#include "nova/WorldResolver.hpp"
+#include "mythos/Config.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/RuntimeDiagnostics.hpp"
+#include "mythos/SnapshotCollector.hpp"
+#include "mythos/WorldResolver.hpp"
 
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 struct UiState {
 	bool menuVisible = true;
@@ -30,16 +30,16 @@ struct UiState {
 	bool initialized = false;
 };
 
-class NovaUi {
+class MythosUi {
 public:
 	void Draw(SettingsStore& store,
-	          const nova::RuntimeDiagnostics& diagnostics,
-	          const nova::ResolverDiagnostics& resolver,
-	          const nova::CollectionDiagnostics& collection,
+	          const mythos::RuntimeDiagnostics& diagnostics,
+	          const mythos::ResolverDiagnostics& resolver,
+	          const mythos::CollectionDiagnostics& collection,
 	          const AimTelemetry& aim,
 	          const EngineCalls::Status& engineCalls,
 	          const VisCheck::Status& vischeck,
-	          const nova::OverlayConfig& liveConfig,
+	          const mythos::OverlayConfig& liveConfig,
 	          UiState& state,
 	          bool animationsEnabled);
 
@@ -54,27 +54,27 @@ private:
 	bool UiCombo(const char* label, int* value, const char* items, const char* help = nullptr);
 	void UiGroup(const char* title);
 
-	void DrawHeader(nova::OverlayConfig& config, const nova::RuntimeDiagnostics& diagnostics,
+	void DrawHeader(mythos::OverlayConfig& config, const mythos::RuntimeDiagnostics& diagnostics,
 	                SettingsStore& store, UiState& state, bool* changed);
-	void DrawOverview(const nova::RuntimeDiagnostics& diagnostics, const nova::OverlayConfig& config);
-	void DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vischeck, bool* changed);
-	void DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
+	void DrawOverview(const mythos::RuntimeDiagnostics& diagnostics, const mythos::OverlayConfig& config);
+	void DrawPlayers(mythos::OverlayConfig& config, const VisCheck::Status& vischeck, bool* changed);
+	void DrawAim(mythos::OverlayConfig& config, const AimTelemetry& aim,
 	             const EngineCalls::Status& engineCalls, const VisCheck::Status& vischeck,
 	             bool* changed);
-	void DrawVisuals(nova::OverlayConfig& config, bool* changed);
-	void DrawOverlaySection(nova::OverlayConfig& config, const nova::RuntimeDiagnostics& diagnostics,
+	void DrawVisuals(mythos::OverlayConfig& config, bool* changed);
+	void DrawOverlaySection(mythos::OverlayConfig& config, const mythos::RuntimeDiagnostics& diagnostics,
 	                        bool* changed);
-	void DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
-	                     const nova::ResolverDiagnostics& resolver,
-	                     const nova::CollectionDiagnostics& collection,
+	void DrawDiagnostics(const mythos::RuntimeDiagnostics& diagnostics,
+	                     const mythos::ResolverDiagnostics& resolver,
+	                     const mythos::CollectionDiagnostics& collection,
 	                     const AimTelemetry& aim,
 	                     const VisCheck::Status& vischeck);
 
-	static ImU32 HealthColor(const nova::RuntimeDiagnostics& diagnostics);
+	static ImU32 HealthColor(const mythos::RuntimeDiagnostics& diagnostics);
 
 	ParticleField particles_;
 	std::string   filter_;
 	int           shownThisFrame_ = 0;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

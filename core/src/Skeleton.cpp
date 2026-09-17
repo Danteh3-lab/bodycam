@@ -1,12 +1,12 @@
-#include "nova/Skeleton.hpp"
+#include "mythos/Skeleton.hpp"
 
-#include "nova/UnrealTypes.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 constexpr size_t kMaxCachedSkeletons = 64;
@@ -273,4 +273,4 @@ const SkeletonInfo* SkeletonCache::GetForMeshComponent(uintptr_t meshComponent, 
 	return GetForAsset(asset, counters);
 }
 
-} // namespace nova
+} // namespace mythos

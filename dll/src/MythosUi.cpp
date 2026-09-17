@@ -1,4 +1,4 @@
-#include "NovaUi.hpp"
+#include "MythosUi.hpp"
 
 #include "Theme.hpp"
 
@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 const char* const kSections[] = {
@@ -29,7 +29,7 @@ void LowerCopy(const char* source, char* out, size_t outSize) {
 
 } // namespace
 
-bool NovaUi::UiPass(const char* label) {
+bool MythosUi::UiPass(const char* label) {
 	if (label == nullptr) return true;
 	if (filter_.empty()) {
 		++shownThisFrame_;
@@ -47,7 +47,7 @@ bool NovaUi::UiPass(const char* label) {
 	return false;
 }
 
-void NovaUi::UiHelp(const char* help) {
+void MythosUi::UiHelp(const char* help) {
 	if (help == nullptr || *help == '\0') return;
 	ImGui::SameLine(0.0f, 4.0f);
 	ImGui::TextDisabled("(?)");
@@ -60,14 +60,14 @@ void NovaUi::UiHelp(const char* help) {
 	}
 }
 
-void NovaUi::UiLabel(const char* label, const char* help) {
+void MythosUi::UiLabel(const char* label, const char* help) {
 	ImGui::AlignTextToFramePadding();
 	ImGui::TextUnformatted(label);
 	UiHelp(help);
 	ImGui::SameLine(theme::kLabelWidth);
 }
 
-bool NovaUi::UiToggle(const char* label, bool* value, const char* help) {
+bool MythosUi::UiToggle(const char* label, bool* value, const char* help) {
 	if (!UiPass(label)) return false;
 	ImGui::PushID(label);
 	ImGui::AlignTextToFramePadding();
@@ -79,7 +79,7 @@ bool NovaUi::UiToggle(const char* label, bool* value, const char* help) {
 	return result;
 }
 
-bool NovaUi::UiSlider(const char* label, float* value, float low, float high,
+bool MythosUi::UiSlider(const char* label, float* value, float low, float high,
                       const char* format, const char* help) {
 	if (!UiPass(label)) return false;
 	ImGui::PushID(label);
@@ -90,7 +90,7 @@ bool NovaUi::UiSlider(const char* label, float* value, float low, float high,
 	return result;
 }
 
-bool NovaUi::UiCombo(const char* label, int* value, const char* items, const char* help) {
+bool MythosUi::UiCombo(const char* label, int* value, const char* items, const char* help) {
 	if (!UiPass(label)) return false;
 	ImGui::PushID(label);
 	UiLabel(label, help);
@@ -100,7 +100,7 @@ bool NovaUi::UiCombo(const char* label, int* value, const char* items, const cha
 	return result;
 }
 
-void NovaUi::UiGroup(const char* title) {
+void MythosUi::UiGroup(const char* title) {
 	ImGui::Dummy(ImVec2(0.0f, 4.0f));
 	ImGui::PushStyleColor(ImGuiCol_Text, theme::ToVec4(theme::kAccent));
 	theme::PushHeading(0.95f);
@@ -111,25 +111,25 @@ void NovaUi::UiGroup(const char* title) {
 	ImGui::Dummy(ImVec2(0.0f, 2.0f));
 }
 
-ImU32 NovaUi::HealthColor(const nova::RuntimeDiagnostics& diagnostics) {
+ImU32 MythosUi::HealthColor(const mythos::RuntimeDiagnostics& diagnostics) {
 	if (!diagnostics.rendererOk) return theme::kDanger;
 	switch (diagnostics.state) {
-	case nova::RuntimeState::Ready:
+	case mythos::RuntimeState::Ready:
 		return diagnostics.entities.roster > 0 ? theme::kSuccess : theme::kWarn;
-	case nova::RuntimeState::Resolving:
+	case mythos::RuntimeState::Resolving:
 		return theme::kWarn;
-	case nova::RuntimeState::OffsetsInvalid:
+	case mythos::RuntimeState::OffsetsInvalid:
 		return theme::kDanger;
-	case nova::RuntimeState::WaitingForWindow:
+	case mythos::RuntimeState::WaitingForWindow:
 		return theme::kTextDim;
-	case nova::RuntimeState::Starting:
-	case nova::RuntimeState::Stopping:
+	case mythos::RuntimeState::Starting:
+	case mythos::RuntimeState::Stopping:
 		return theme::kAccent;
 	}
 	return theme::kTextDim;
 }
 
-void NovaUi::DrawHeader(nova::OverlayConfig& config, const nova::RuntimeDiagnostics& diagnostics,
+void MythosUi::DrawHeader(mythos::OverlayConfig& config, const mythos::RuntimeDiagnostics& diagnostics,
                         SettingsStore& store, UiState& state, bool* changed) {
 	const float windowWidth = ImGui::GetWindowWidth();
 	const float toggleWidth = 130.0f;
@@ -169,7 +169,7 @@ void NovaUi::DrawHeader(nova::OverlayConfig& config, const nova::RuntimeDiagnost
 	                          5.0f, healthColor, 16);
 	ImGui::Dummy(ImVec2(14.0f, 0.0f));
 	ImGui::SameLine();
-	ImGui::Text("Runtime: %s", nova::RuntimeStateName(diagnostics.state));
+	ImGui::Text("Runtime: %s", mythos::RuntimeStateName(diagnostics.state));
 	ImGui::SameLine();
 	ImGui::TextDisabled("|");
 	ImGui::SameLine();
@@ -186,21 +186,21 @@ void NovaUi::DrawHeader(nova::OverlayConfig& config, const nova::RuntimeDiagnost
 	ImGui::Separator();
 }
 
-void NovaUi::DrawOverview(const nova::RuntimeDiagnostics& diagnostics,
-                          const nova::OverlayConfig& config) {
+void MythosUi::DrawOverview(const mythos::RuntimeDiagnostics& diagnostics,
+                          const mythos::OverlayConfig& config) {
 	UiGroup("Status");
-	ImGui::TextWrapped("%s", nova::RuntimeStateDescription(diagnostics.state));
+	ImGui::TextWrapped("%s", mythos::RuntimeStateDescription(diagnostics.state));
 	if (!diagnostics.rendererOk) {
 		ImGui::TextColored(theme::ToVec4(theme::kDanger),
 		                   "Renderer failure: the overlay device could not be recovered.");
-	} else if (diagnostics.state == nova::RuntimeState::WaitingForWindow) {
+	} else if (diagnostics.state == mythos::RuntimeState::WaitingForWindow) {
 		ImGui::TextDisabled("Waiting for a world to load. The main menu has no roster yet.");
-	} else if (diagnostics.state == nova::RuntimeState::Resolving) {
-		ImGui::TextDisabled("Chain: %s", nova::ResolveStageName(diagnostics.stage));
-	} else if (diagnostics.state == nova::RuntimeState::OffsetsInvalid) {
+	} else if (diagnostics.state == mythos::RuntimeState::Resolving) {
+		ImGui::TextDisabled("Chain: %s", mythos::ResolveStageName(diagnostics.stage));
+	} else if (diagnostics.state == mythos::RuntimeState::OffsetsInvalid) {
 		ImGui::TextColored(theme::ToVec4(theme::kDanger),
 		                   "Offsets do not match this build. ESP stays disabled.");
-	} else if (diagnostics.state == nova::RuntimeState::Ready &&
+	} else if (diagnostics.state == mythos::RuntimeState::Ready &&
 	           diagnostics.entities.roster == 0) {
 		ImGui::TextColored(theme::ToVec4(theme::kWarn), "Empty roster: no players visible.");
 	}
@@ -213,16 +213,16 @@ void NovaUi::DrawOverview(const nova::RuntimeDiagnostics& diagnostics,
 
 	UiGroup("Keys");
 	ImGui::Text("INSERT  toggle this menu");
-	ImGui::Text("DELETE  stop NOVA (restart game to reload)");
+	ImGui::Text("DELETE  stop MYTHOS (restart game to reload)");
 
 	UiGroup("Quick actions");
 	ImGui::TextDisabled("Master toggle: %s", config.espEnabled ? "ON" : "OFF");
 	ImGui::TextDisabled("Configure features in Players and Visuals.");
 }
 
-void NovaUi::DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vischeck,
+void MythosUi::DrawPlayers(mythos::OverlayConfig& config, const VisCheck::Status& vischeck,
                          bool* changed) {
-	nova::PlayerFeatureConfig& players = config.players;
+	mythos::PlayerFeatureConfig& players = config.players;
 
 	UiGroup("Box");
 	if (UiCombo("Bounding box", &players.boxMode, "None\0Full\0Corners\0",
@@ -302,10 +302,10 @@ void NovaUi::DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vi
 	if (UiSlider("Max distance", &players.maxDistance, 10.0f, 1000.0f, "%.0f m")) *changed = true;
 }
 
-void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
+void MythosUi::DrawAim(mythos::OverlayConfig& config, const AimTelemetry& aim,
                      const EngineCalls::Status& engineCalls, const VisCheck::Status& vischeck,
                      bool* changed) {
-	nova::AimConfig& settings = config.aim;
+	mythos::AimConfig& settings = config.aim;
 
 	UiGroup("Aim assist");
 	if (UiToggle("Enable aimbot", &settings.enabled,
@@ -334,7 +334,7 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 	ImGui::BeginDisabled(!anyAim);
 	if (UiCombo("Method", &settings.method,
 	            "Game function (unsafe, opt-in)\0Rotation input (direct)\0Control rotation (legacy)\0",
-	            "Rotation input: writes RotationInput directly from NOVA's worker. The\n"
+	            "Rotation input: writes RotationInput directly from MYTHOS's worker. The\n"
 	            "default and recommended reference-compatible method. It does not require\n"
 	            "the optional engine-call path.\n\n"
 	            "Control rotation: the old direct-write method. The game recomputes that\n"
@@ -395,7 +395,7 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 	if (UiToggle("Allow engine calls (unsafe)", &config.unsafeEngineCalls,
 	             "Off by default. AddYawInput/AddPitchInput use the verified game-thread\n"
 	             "path. To match bodycam-master, ProcessEvent vischeck runs directly from\n"
-	             "NOVA's worker thread. That call can re-enter the engine at an unsafe\n"
+	             "MYTHOS's worker thread. That call can re-enter the engine at an unsafe\n"
 	             "phase; enable only if you accept the crash risk.")) {
 		*changed = true;
 	}
@@ -434,9 +434,9 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 	ImGui::TextWrapped("Status: %s", aim.status.c_str());
 }
 
-void NovaUi::DrawVisuals(nova::OverlayConfig& config, bool* changed) {
-	nova::VisualStyleConfig& visuals = config.visuals;
-	nova::ProjectionConfig& projection = config.projection;
+void MythosUi::DrawVisuals(mythos::OverlayConfig& config, bool* changed) {
+	mythos::VisualStyleConfig& visuals = config.visuals;
+	mythos::ProjectionConfig& projection = config.projection;
 
 	UiGroup("Style");
 	if (UiToggle("Outline", &visuals.outline,
@@ -500,8 +500,8 @@ void NovaUi::DrawVisuals(nova::OverlayConfig& config, bool* changed) {
 	}
 }
 
-void NovaUi::DrawOverlaySection(nova::OverlayConfig& config,
-                                const nova::RuntimeDiagnostics& diagnostics, bool* changed) {
+void MythosUi::DrawOverlaySection(mythos::OverlayConfig& config,
+                                const mythos::RuntimeDiagnostics& diagnostics, bool* changed) {
 	UiGroup("Overlay");
 	ImGui::Text("Toggle menu: INSERT");
 	ImGui::Text("Stop:        DELETE (restart game to reload)");
@@ -520,14 +520,14 @@ void NovaUi::DrawOverlaySection(nova::OverlayConfig& config,
 	                   "disabled automatically regardless of this setting.");
 }
 
-void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
-                             const nova::ResolverDiagnostics& resolver,
-                             const nova::CollectionDiagnostics& collection,
+void MythosUi::DrawDiagnostics(const mythos::RuntimeDiagnostics& diagnostics,
+                             const mythos::ResolverDiagnostics& resolver,
+                             const mythos::CollectionDiagnostics& collection,
                              const AimTelemetry& aim,
                              const VisCheck::Status& vischeck) {
 	UiGroup("Resolver");
-	ImGui::Text("State: %s", nova::RuntimeStateName(diagnostics.state));
-	ImGui::Text("Chain: %s", nova::ResolveStageName(diagnostics.stage));
+	ImGui::Text("State: %s", mythos::RuntimeStateName(diagnostics.state));
+	ImGui::Text("Chain: %s", mythos::ResolveStageName(diagnostics.stage));
 	ImGui::Text("Names ready: %s", diagnostics.namesReady ? "yes" : "no");
 	ImGui::Text("World anchor RVA: 0x%llX  (%s)",
 	            static_cast<unsigned long long>(diagnostics.anchorRva),
@@ -573,7 +573,7 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 	ImGui::Text("attempts %d / %d", vischeck.tries, vischeck.maxTries);
 	ImGui::TextWrapped("A line-of-sight trace is run from your camera to each tracked player "
 	                   "through the engine's own LineOfSightTo function. With the unsafe opt-in, "
-	                   "ProcessEvent runs directly from NOVA's worker to match bodycam-master. "
+	                   "ProcessEvent runs directly from MYTHOS's worker to match bodycam-master. "
 	                   "Results are cached briefly; unresolved or faulting checks count as "
 	                   "visible, so the ESP never silently hides players.");
 
@@ -587,17 +587,17 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 	}
 
 	UiGroup("Logs");
-	ImGui::TextWrapped("Lifecycle, timings and failures are written to the NOVA log directory. "
+	ImGui::TextWrapped("Lifecycle, timings and failures are written to the MYTHOS log directory. "
 	                   "No player names or gameplay data are recorded.");
 }
 
-void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnostics,
-                  const nova::ResolverDiagnostics& resolver,
-                  const nova::CollectionDiagnostics& collection,
+void MythosUi::Draw(SettingsStore& store, const mythos::RuntimeDiagnostics& diagnostics,
+                  const mythos::ResolverDiagnostics& resolver,
+                  const mythos::CollectionDiagnostics& collection,
                   const AimTelemetry& aim, const EngineCalls::Status& engineCalls,
                   const VisCheck::Status& vischeck,
-                  const nova::OverlayConfig& liveConfig, UiState& state, bool animationsEnabled) {
-	nova::OverlayConfig config = liveConfig;
+                  const mythos::OverlayConfig& liveConfig, UiState& state, bool animationsEnabled) {
+	mythos::OverlayConfig config = liveConfig;
 	bool changed = false;
 
 	if (!state.initialized) {
@@ -621,7 +621,7 @@ void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnost
 	ImGui::SetNextWindowSizeConstraints(ImVec2(640.0f, 420.0f), ImVec2(FLT_MAX, FLT_MAX));
 
 	const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
-	if (!ImGui::Begin("NOVA", nullptr, flags)) {
+	if (!ImGui::Begin("MYTHOS", nullptr, flags)) {
 		ImGui::End();
 		return;
 	}
@@ -673,7 +673,7 @@ void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnost
 	ImGui::End();
 
 	if (changed) {
-		store.Update([&config](nova::OverlayConfig& target) { target = config; });
+		store.Update([&config](mythos::OverlayConfig& target) { target = config; });
 	}
 
 	// Persist the window position (ImGui coordinates are relative to the game
@@ -683,11 +683,11 @@ void NovaUi::Draw(SettingsStore& store, const nova::RuntimeDiagnostics& diagnost
 	     std::fabs(windowPosition.y - liveConfig.menu.y) > 1.0f)) {
 		const float x = windowPosition.x;
 		const float y = windowPosition.y;
-		store.Update([x, y](nova::OverlayConfig& target) {
+		store.Update([x, y](mythos::OverlayConfig& target) {
 			target.menu.x = x;
 			target.menu.y = y;
 		});
 	}
 }
 
-} // namespace nova_host
+} // namespace mythos_host

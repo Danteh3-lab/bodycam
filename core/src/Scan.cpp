@@ -1,8 +1,8 @@
-#include "nova/Scan.hpp"
+#include "mythos/Scan.hpp"
 
 #include "Offsets.hpp"
 
-namespace nova {
+namespace mythos {
 
 ModuleScanner::ModuleScanner(const ReadOnlyMemory& memory, bool executableSections)
 	: memory_(memory), executableSections_(executableSections) {
@@ -60,4 +60,4 @@ ModuleScanner::StepResult ModuleScanner::Step(Cursor& cursor, size_t maxBytes, C
 	return StepResult::Exhausted;
 }
 
-} // namespace nova
+} // namespace mythos

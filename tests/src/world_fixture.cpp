@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace novatest {
+namespace mythostest {
 namespace {
 
 constexpr int kBoneCount = 9;
@@ -86,7 +86,7 @@ WorldFixture::WorldFixture() {
 	playerController_ = memory.Allocate(0x400);
 	memory.WritePointer(localPlayer_ + Offsets::LPPlayerController, playerController_);
 	memory.WriteUInt8(localPlayer_ + Offsets::AspectAxisConstraint,
-	                  static_cast<uint8_t>(nova::AspectAxis::MaintainXFOV));
+	                  static_cast<uint8_t>(mythos::AspectAxis::MaintainXFOV));
 
 	// PlayerController -> CameraManager / PlayerState / Pawn, plus the level
 	// used for the outer-world rescue.
@@ -284,4 +284,4 @@ uintptr_t WorldFixture::CreateAlternateWorld(bool containsLocalPlayerState) {
 	return alternateWorld;
 }
 
-} // namespace novatest
+} // namespace mythostest

@@ -1,10 +1,10 @@
-# NOVA — Design
+# MYTHOS — Design
 
-NOVA's visual identity is a rounded, dark control panel with cyan status accents and
+MYTHOS's visual identity is a rounded, dark control panel with restrained oracle-indigo status accents and
 semantic ESP colours. This document mirrors the exact values used at runtime.
 
 > **Source of truth:** the C++ theme tokens in `dll/src/Theme.hpp` and the layout
-> metrics in `dll/src/NovaUi.cpp`. DESIGN.md does not generate C++; it documents
+> metrics in `dll/src/MythosUi.cpp`. DESIGN.md does not generate C++; it documents
 > the values and the rationale behind them. When the two disagree, the code wins.
 
 ---
@@ -18,26 +18,26 @@ deliberately high-contrast so it stays readable over the game's bright frames.
 
 | Token        | RGBA                  | Use                                  | Rationale |
 |--------------|-----------------------|--------------------------------------|-----------|
-| `kSurface0`  | `10, 11, 13, 246`     | Window background                    | Near-black, slightly blue; 96% opaque keeps the game faintly visible as context without hurting text contrast. |
-| `kSurface1`  | `16, 18, 21, 255`     | Child panels (nav, content)          | One step lighter so the frame reads as layered. |
-| `kSurface2`  | `24, 27, 31, 255`     | Frames, buttons, sliders             | Interactive surfaces. |
-| `kSurface3`  | `33, 37, 42, 255`     | Hovered frames                       | Hover is a brightness step, not a hue change, so it never competes with semantic colours. |
-| `kBorder`    | `44, 49, 56, 190`     | Panel borders, separators            | 1 px structure without a hard grid. |
+| `kSurface0`  | `13, 11, 19, 246` (`#0D0B13`) | Window background              | Oracle-black, 96% opaque so the game remains faintly visible as context without hurting text contrast. |
+| `kSurface1`  | `20, 17, 29, 255` (`#14111D`) | Child panels (nav, content)    | A violet-black layer that makes the frame read as dimensional. |
+| `kSurface2`  | `30, 26, 42, 255` (`#1E1A2A`) | Frames, buttons, sliders       | Interactive surfaces. |
+| `kSurface3`  | `43, 36, 59, 255` (`#2B243B`) | Hovered frames                 | Hover is a restrained indigo brightness step, never competing with semantic colours. |
+| `kBorder`    | `66, 55, 84, 190` (`#423754`)  | Panel borders, separators      | 1 px violet structure without a hard grid. |
 
 ### Text
 
 | Token        | RGBA                  | Use                                  |
 |--------------|-----------------------|--------------------------------------|
 | `kText`      | `236, 239, 242, 255`  | Primary labels and values            |
-| `kTextDim`   | `150, 158, 168, 255`  | Help markers, secondary status       |
-| `kTextFaint` | `104, 112, 122, 255`  | Disabled copy                        |
+| `kTextDim`   | `164, 156, 177, 255` (`#A49CB1`) | Help markers, secondary status |
+| `kTextFaint` | `112, 103, 125, 255` (`#70677D`) | Disabled copy                  |
 
 ### Accents and semantics
 
 | Token        | RGBA                  | Use                                  | Rationale |
 |--------------|-----------------------|--------------------------------------|-----------|
-| `kAccent`    | `64, 214, 224, 255`   | Checkmarks, active sliders, group headings, nav cursor | Cyan reads as "instrumentation", not as a warning, and stays distinct from the ESP blue. |
-| `kAccentDim` | `38, 129, 137, 255`   | Slider tracks, active buttons        | Same hue at lower energy prevents flicker between states. |
+| `kAccent`    | `177, 144, 255, 255` (`#B190FF`) | Checkmarks, active sliders, group headings, nav cursor | Oracle-indigo is the MYTHOS signature: luminous enough for focus, quiet enough to leave ESP semantics dominant. |
+| `kAccentDim` | `105, 81, 159, 255` (`#69519F`)  | Slider tracks, active buttons        | A dim indigo companion prevents flicker between states. |
 | `kSuccess`   | `74, 210, 118, 255`   | Ready state                          | Confirmation, also used for the health ramp's top band. |
 | `kWarn`      | `255, 176, 46, 255`   | Resolving / empty roster             | Amber, never used for destructive meaning. |
 | `kDanger`    | `255, 76, 76, 255`    | Invalid offsets, renderer failure    | Reserved for fail-closed conditions only. |
@@ -114,7 +114,7 @@ The header health indicator renders one of these labels (text, not colour):
 | `Ready` (roster 0)            | amber   | Valid world, empty roster. |
 | `Recovering after map change` | amber   | Previously ready, caches cleared. |
 | `Offsets invalid`             | red     | Known build mismatch; ESP stays disabled. |
-| `Renderer failure`            | red   | D3D11 device could not be recovered; NOVA stops. |
+| `Renderer failure`            | red   | D3D11 device could not be recovered; MYTHOS stops. |
 
 ESP is drawn only when the state is `Ready` **and** the latest snapshot is valid.
 Invalid snapshots render nothing rather than stale pointers.
@@ -123,14 +123,17 @@ Invalid snapshots render nothing rather than stale pointers.
 
 ## 5. Particle field
 
-The particle field is NOVA's only decorative element.
+The particle field is MYTHOS's constellation signature and only decorative element.
 
 * Contained: clipped to the menu window, drawn behind the panel content.
 * Disabled when Windows client-area animations are off (`SPI_GETCLIENTAREAANIMATION`)
   or when **Overlay → Reduce motion** is enabled.
 * Bounded: 100 particles at start, +1 per 0.5 s up to 150; wrap-around motion with
   a soft mouse repulsion (50–150 px influence).
-* Colour: `120, 220, 228` with a 30–45% alpha pulse; radius 1.8 px.
+* Points use `199, 176, 255` (`#C7B0FF`) with a 30–45% alpha pulse; radius 1.8 px.
+* Each particle connects to at most one nearest later neighbour within 70 logical
+  pixels. Lines are drawn behind points, capped at 80 connections per frame, and
+  use distance-scaled alpha up to 26.
 
 Rationale: one signature visual keeps the panel recognisable without adding
 motion that competes with the ESP or harms accessibility.
@@ -170,12 +173,12 @@ motion that competes with the ESP or harms accessibility.
 ## 7. Aim and visibility check
 
 Aim assist and the visibility check are the only features that interact with
-the game; they live in the quarantined NOVA.dll modules
-`EngineCalls` / `VisCheck` / `AimController`. `nova_core` remains read-only and
+the game; they live in the quarantined MYTHOS.dll modules
+`EngineCalls` / `VisCheck` / `AimController`. `mythos_core` remains read-only and
 the static contract test rejects engine interaction tokens anywhere else.
 
 * Targeting is a pure function over the immutable snapshot
-  (`nova::SelectAimTarget`): self, drones and dead players are skipped;
+  (`mythos::SelectAimTarget`): self, drones and dead players are skipped;
   teammates and occluded players are filtered per settings; the closest
   projection to the crosshair inside the FOV circle wins.
 * The view delta comes from `ControlRotation` and the target angle, divided by
@@ -205,7 +208,7 @@ the static contract test rejects engine interaction tokens anywhere else.
   `0x4F` must resolve to the same function, and that function must match the
   exact 31-byte current-build prologue. A mismatch disables the check, and the
   check itself is off until **Allow engine calls (unsafe)** is enabled. To
-  match bodycam-master, `LineOfSightTo` is invoked synchronously from NOVA's
+  match bodycam-master, `LineOfSightTo` is invoked synchronously from MYTHOS's
   worker thread, with `WasRecentlyRendered` as fallback. This path does not
   depend on the APC executor and can re-enter the engine at an unsafe phase.
   Reflected parameter offsets are individually bounds-checked before the
@@ -215,7 +218,7 @@ the static contract test rejects engine interaction tokens anywhere else.
   function and results are dropped on a controller change or map transition.
 * The module is pinned when the optional game-thread path is opened, so an APC
   delivered late can never execute in unmapped code; shutdown joins the worker
-  and cancels queued tasks first. `DELETE` therefore stops NOVA but leaves the
+  and cancels queued tasks first. `DELETE` therefore stops MYTHOS but leaves the
   pinned module mapped: restart the game to inject again.
 * Aim telemetry (target, crosshair distance, step) and the engine/vischeck
   status strings are published in the worker frame and surfaced in the Aim and

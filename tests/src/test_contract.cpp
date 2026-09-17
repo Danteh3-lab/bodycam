@@ -187,7 +187,7 @@ bool IsQuarantinedModule(const std::filesystem::path& path) {
 
 } // namespace
 
-NOVA_TEST(ContractScannerSelfTest) {
+MYTHOS_TEST(ContractScannerSelfTest) {
 	const std::string text = "int x = VirtualProtect(); // VirtualAlloc\ndeadbeef";
 	CHECK(ContainsToken(text, "VirtualProtect"));
 	CHECK(!ContainsToken(text, "VirtualAllo"));
@@ -201,9 +201,9 @@ NOVA_TEST(ContractScannerSelfTest) {
 	CHECK(ContainsToken(stripped, "int y"));
 }
 
-NOVA_TEST(CoreIsStrictlyReadOnly) {
-	// nova_core never writes memory, patches code or calls engine functions.
-	const std::filesystem::path root = NOVA_SOURCE_DIR;
+MYTHOS_TEST(CoreIsStrictlyReadOnly) {
+	// mythos_core never writes memory, patches code or calls engine functions.
+	const std::filesystem::path root = MYTHOS_SOURCE_DIR;
 	const std::vector<std::filesystem::path> files = CollectSources(root, { "core" });
 	CHECK(files.size() >= 15); // guard against a vacuous scan
 
@@ -225,8 +225,8 @@ NOVA_TEST(CoreIsStrictlyReadOnly) {
 	CHECK_EQ(violations, 0);
 }
 
-NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
-	const std::filesystem::path root = NOVA_SOURCE_DIR;
+MYTHOS_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
+	const std::filesystem::path root = MYTHOS_SOURCE_DIR;
 	const std::vector<std::filesystem::path> files = CollectSources(root, { "core", "dll" });
 	CHECK(files.size() >= 20); // guard against a vacuous scan
 
@@ -298,7 +298,7 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	// Reference-compatible direct methods must not be blocked by the optional
 	// APC path. Keep engine-function methods and ProcessEvent on the executor,
 	// but ensure the two direct-write regions perform their guarded reads and
-	// writes synchronously from NOVA's worker thread.
+	// writes synchronously from MYTHOS's worker thread.
 	const size_t directStart = engine.find("EngineCalls::AddLookInputDirect");
 	const size_t controlStart = engine.find("EngineCalls::SetControlRotation");
 	CHECK(directStart != std::string::npos);
@@ -313,7 +313,7 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	}
 	// Use the unstripped source only to locate the namespace terminator; the
 	// stripped buffer keeps identical offsets while removing comment text.
-	const size_t controlEnd = engineSource.find("} // namespace nova_host", controlStart);
+	const size_t controlEnd = engineSource.find("} // namespace mythos_host", controlStart);
 	if (controlStart != std::string::npos && controlEnd != std::string::npos &&
 	    controlStart < controlEnd) {
 		const std::string control = engine.substr(controlStart, controlEnd - controlStart);
@@ -352,11 +352,11 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	CHECK_EQ(writeViolations, 0);
 }
 
-NOVA_TEST(BootstrapTeardownIsGuarded) {
+MYTHOS_TEST(BootstrapTeardownIsGuarded) {
 	// A throwing bootstrap path must still stop/join the worker and destroy the
 	// overlay before the DLL unloads.
 	const std::filesystem::path dllRoot =
-		std::filesystem::path(NOVA_SOURCE_DIR) / "dll" / "src";
+		std::filesystem::path(MYTHOS_SOURCE_DIR) / "dll" / "src";
 
 	// Comments are stripped first: prose such as "Shutdown() is idempotent"
 	// must not satisfy the executable-call check.
@@ -380,24 +380,60 @@ NOVA_TEST(BootstrapTeardownIsGuarded) {
 	CHECK(ContainsToken(runtime, "worker_.join"));    // explicit join in Shutdown
 }
 
-NOVA_TEST(LoaderInjectionIsIsolatedToTheLoader) {
+MYTHOS_TEST(LoaderInjectionIsIsolatedToTheLoader) {
 	// The loader is the only component allowed to inject, and it must use the
 	// minimal, explicitly documented APIs.
 	const std::filesystem::path loaderSource =
-		std::filesystem::path(NOVA_SOURCE_DIR) / "loader" / "src" / "main.cpp";
+		std::filesystem::path(MYTHOS_SOURCE_DIR) / "loader" / "src" / "main.cpp";
 	const std::string text = ReadFile(loaderSource);
 	CHECK(!text.empty());
 	CHECK(ContainsToken(text, "LoadLibraryW"));
 	CHECK(ContainsToken(text, "PROCESS_CREATE_THREAD"));
 	CHECK(!ContainsToken(text, "PROCESS_ALL_ACCESS"));
 	CHECK(!ContainsToken(text, "SE_DEBUG_NAME"));
+	CHECK(text.find("MYTHOS.dll") != std::string::npos);
+	CHECK(text.find("MYTHOS.Loader.exe") != std::string::npos);
+	CHECK(text.find("NOVA.dll") != std::string::npos);
+	CHECK(text.find("ModuleAlreadyLoaded(pid, kLegacyDllName)") != std::string::npos);
 }
 
-NOVA_TEST(OverlayStartupInitializesStyleBeforeShowing) {
+MYTHOS_TEST(BrandConsistencyHasOnlyExplicitLegacyAllowlist) {
+	const std::filesystem::path root = std::filesystem::path(MYTHOS_SOURCE_DIR);
+	std::vector<std::filesystem::path> files = CollectSources(root, { "core", "dll", "loader", "tests" });
+	for (const char* document : { "README.md", "DESIGN.md", "CMakeLists.txt",
+	                              "core/CMakeLists.txt", "dll/CMakeLists.txt",
+	                              "loader/CMakeLists.txt", "tests/CMakeLists.txt" }) {
+		files.push_back(root / document);
+	}
+	const std::vector<std::string> allowlisted = {
+		"core/include/mythos/Config.hpp",
+		"dll/src/Platform.cpp",
+		"dll/src/SettingsStore.cpp",
+		"dll/src/SettingsStore.hpp",
+		"loader/src/main.cpp",
+		"README.md",
+		"tests/src/test_config.cpp",
+		"tests/src/test_contract.cpp",
+	};
+	int violations = 0;
+	for (const std::filesystem::path& path : files) {
+		const std::string relative = std::filesystem::relative(path, root).generic_string();
+		if (std::find(allowlisted.begin(), allowlisted.end(), relative) != allowlisted.end()) continue;
+		const std::string text = ReadFile(path);
+		if (text.find("NOVA") != std::string::npos || text.find("Nova") != std::string::npos ||
+		    text.find("nova") != std::string::npos) {
+			++violations;
+			std::printf("    legacy brand token in %s\n", relative.c_str());
+		}
+	}
+	CHECK_EQ(violations, 0);
+}
+
+MYTHOS_TEST(OverlayStartupInitializesStyleBeforeShowing) {
 	// The overlay must not become visible before its hidden-mode styles and
 	// layered attributes are in place, and a style failure must abort startup.
 	const std::filesystem::path overlaySource =
-		std::filesystem::path(NOVA_SOURCE_DIR) / "dll" / "src" / "OverlayWindow.cpp";
+		std::filesystem::path(MYTHOS_SOURCE_DIR) / "dll" / "src" / "OverlayWindow.cpp";
 	const std::string text = StripCommentsAndLiterals(ReadFile(overlaySource));
 	CHECK(!text.empty());
 

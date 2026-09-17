@@ -1,6 +1,6 @@
-# NOVA — Bodycam Overlay
+# MYTHOS — Bodycam Overlay
 
-NOVA is an Unreal Engine 5 overlay for **Bodycam** (Steam app `2406770`,
+MYTHOS is an Unreal Engine 5 overlay for **Bodycam** (Steam app `2406770`,
 build `25228199`), targeting offline/private play on Windows x64 in windowed
 and borderless windowed modes. It provides a read-only ESP plus optional aim
 assist and an engine line-of-sight visibility check.
@@ -9,10 +9,11 @@ Release artifacts:
 
 | Artifact          | Description |
 |-------------------|-------------|
-| `NOVA.dll`        | Injected overlay: resolver, snapshot worker, D3D11 ESP + control panel |
-| `NOVA.Loader.exe` | Minimal-rights DLL loader with validation and distinct exit codes |
+| `MYTHOS.dll`        | Injected overlay: resolver, snapshot worker, D3D11 ESP + control panel |
+| `MYTHOS.Loader.exe` | Minimal-rights DLL loader with validation and distinct exit codes |
+| `mythos_core.lib` / `mythos_imgui.lib` | Static core and vendored UI libraries used by the release targets |
 
-The world model is strictly read-only: `nova_core` never writes game memory,
+The world model is strictly read-only: `mythos_core` never writes game memory,
 patches code or calls engine functions, and the static contract test enforces
 this for every `core/` file. The only engine interaction — the resolved
 `AddYawInput`/`AddPitchInput` calls, the guarded `RotationInput` /
@@ -20,19 +21,19 @@ this for every `core/` file. The only engine interaction — the resolved
 quarantined in the dedicated `dll/` modules `EngineCalls`, `VisCheck` and
 `AimController`; the same test rejects those tokens everywhere else and bans
 patching, hook and injection APIs across `core/` and `dll/`. Injection stays in
-`NOVA.Loader.exe` alone. No anti-cheat or stealth behaviour is implemented.
+`MYTHOS.Loader.exe` alone. No anti-cheat or stealth behaviour is implemented.
 
 ---
 
 ## Architecture
 
 ```
-NOVA.Loader.exe
+MYTHOS.Loader.exe
     |  validates DLL (x64), target (x64), build when discoverable, not loaded
     |  OpenProcess(minimum rights) -> VirtualAllocEx/WriteProcessMemory ->
-    |  CreateRemoteThread(LoadLibraryW) -> NOVA.dll
+    |  CreateRemoteThread(LoadLibraryW) -> MYTHOS.dll
     v
-NOVA.dll  (bootstrap thread; DllMain only disables thread notifications)
+MYTHOS.dll  (bootstrap thread; DllMain only disables thread notifications)
     |
     +-- ProcessMemory ........ Win32 implementation of ReadOnlyMemory (SEH-guarded reads)
     +-- NamePool ............. FNamePool via known RVA, then bounded signature scan
@@ -45,7 +46,7 @@ NOVA.dll  (bootstrap thread; DllMain only disables thread notifications)
     +-- AimController ........ target selection + per-tick aim step application
     +-- OverlayWindow ........ D3D11 top-level transparent window + ImGui lifecycle
     +-- EspRenderer .......... boxes, names, health, distance, skeletons, head dots, snaplines
-    +-- NovaUi ............... Overview / Players / Aim / Visuals / Overlay / Diagnostics
+    +-- MythosUi ............... Overview / Players / Aim / Visuals / Overlay / Diagnostics
     +-- SettingsStore ........ OverlayConfig schema v2, debounced atomic saves
 ```
 
@@ -59,12 +60,12 @@ nothing instead of falling back to stale pointers.
 ```
 Offsets.hpp            single offset source + profile metadata (app/build)
 DESIGN.md              theme tokens, layout, states, accessibility notes
-CMakeLists.txt         NOVA.dll + NOVA.Loader.exe + nova_core + tests
+CMakeLists.txt         MYTHOS.dll + MYTHOS.Loader.exe + mythos_core + tests
 core/                  read-only core library (no ImGui, no Win32 UI)
-  include/nova/        ReadOnlyMemory, WorldResolver, SnapshotCollector, Config, ...
+  include/mythos/        ReadOnlyMemory, WorldResolver, SnapshotCollector, Config, ...
   src/
 dll/                   the injected overlay (D3D11 + ImGui)
-loader/                NOVA.Loader.exe
+loader/                MYTHOS.Loader.exe
 tests/                 non-shipping test target with fake-memory fixtures
 third_party/
   imgui/               Dear ImGui v1.92.9 (MIT, vendored)
@@ -91,10 +92,11 @@ ctest --test-dir build -C Release --output-on-failure
 Outputs:
 
 ```
-build\dll\Release\NOVA.dll
-build\loader\Release\NOVA.Loader.exe
-build\core\Release\nova_core.lib
-build\tests\Release\nova_tests.exe
+build\dll\Release\MYTHOS.dll
+build\loader\Release\MYTHOS.Loader.exe
+build\core\Release\mythos_core.lib
+build\Release\mythos_imgui.lib
+build\tests\Release\mythos_tests.exe
 ```
 
 Debug builds (`--config Debug`) and the test target are supported and verified.
@@ -103,7 +105,7 @@ Debug builds (`--config Debug`) and the test target are supported and verified.
 
 ## Tests
 
-`nova_tests` is a non-shipping target with no framework dependency. Coverage:
+`mythos_tests` is a non-shipping target with no framework dependency. Coverage:
 
 - pointer/range guards, guarded reads, UE TArray bounds, FTransform layout;
 - narrow/wide FName decoding, pool plausibility, signature matcher;
@@ -125,13 +127,15 @@ Debug builds (`--config Debug`) and the test target are supported and verified.
 ## Usage
 
 1. Start Bodycam (windowed or borderless windowed).
-2. Run `NOVA.Loader.exe` (same integrity level as the game):
-   - `--dll <path>` optional, defaults to `NOVA.dll` next to the loader;
+2. Run `MYTHOS.Loader.exe` (same integrity level as the game):
+   - `--dll <path>` optional, defaults to `MYTHOS.dll` next to the loader;
    - `--pid <id>` optional, defaults to finding `Bodycam-Win64-Shipping.exe`.
-3. In game: `INSERT` toggles the NOVA panel; `DELETE` stops NOVA (the overlay,
-   sampling and input stop). Opening the game-thread path pins `NOVA.dll`, so
+   - injection is rejected when either `MYTHOS.dll` or the legacy `NOVA.dll` is
+     already mapped; restart the game before trying again.
+3. In game: `INSERT` toggles the MYTHOS panel; `DELETE` stops MYTHOS (the overlay,
+   sampling and input stop). Opening the game-thread path pins `MYTHOS.dll`, so
    it stays mapped until the game exits and the loader refuses a second
-   injection: **restart the game to load NOVA again**.
+   injection: **restart the game to load MYTHOS again**.
 
 The loader's exit codes:
 
@@ -149,20 +153,26 @@ The loader's exit codes:
 | 10   | Remote write failed |
 | 11   | Remote thread failed |
 | 12   | Injection timed out |
-| 13   | `NOVA.dll` is already loaded (restart the game to inject again) |
+| 13   | `MYTHOS.dll` or legacy `NOVA.dll` is already loaded (restart the game to inject again) |
 | 14   | `LoadLibraryW` returned NULL in the target |
 
 ---
 
 ## Settings, logs and privacy
 
-- Settings: `%LOCALAPPDATA%\NOVA\settings.json` (schema v2). Edits apply
+- Settings: `%LOCALAPPDATA%\MYTHOS\settings.json` (schema v2). Edits apply
   immediately; saves are atomic and debounced by 500 ms, and flush on stop.
   Invalid values are clamped; a corrupt file is preserved as
   `settings.json.corrupt-<timestamp>.json` before defaults are restored.
-- Logs: `%LOCALAPPDATA%\NOVA\logs\nova.log`, bounded to 512 KB with one
+- Logs: `%LOCALAPPDATA%\MYTHOS\logs\mythos.log`, bounded to 512 KB with one
   rotation. Lifecycle stages, timings, failures and build fingerprints only —
   no player names or gameplay data.
+- First-run migration: if `%LOCALAPPDATA%\MYTHOS\settings.json` is absent, MYTHOS
+  reads `%LOCALAPPDATA%\NOVA\settings.json` once, validates/clamps it, and writes
+  an atomic copy into the MYTHOS directory. The legacy file is read-only and is
+  never renamed, deleted, backed up, or imported as a log. The panel reports
+  `Imported NOVA settings` for that session; missing or invalid legacy data leaves
+  MYTHOS defaults in place with a warning.
 
 ---
 
@@ -203,16 +213,16 @@ Build gating is enforced on the PE identity, not just a version string:
   drone and occlusion filters; the head bone comes from the model's reference
   pose. Visible only and Dim occluded are mutually exclusive in the panel.
 - The `AddYawInput`/`AddPitchInput` engine method runs only on a verified
-  game-thread path: NOVA proves a user-mode APC round trip to the window-owning
+  game-thread path: MYTHOS proves a user-mode APC round trip to the window-owning
   thread at startup, queues those calls there with a bounded wait, and cancels
   tasks that miss their deadline. No hooks or thread suspension are involved.
 - To match bodycam-master, the `ProcessEvent` vischeck runs synchronously from
-  NOVA's worker thread. It does not depend on the APC path, but it can re-enter
+  MYTHOS's worker thread. It does not depend on the APC path, but it can re-enter
   engine code at an unsafe phase. It is **off by default** and runs only when
   the owner enables **Allow engine calls (unsafe)** in the Aim section.
 - The default direct methods mirror bodycam-master: guarded read/modify/write
   operations update `RotationInput` or `ControlRotation` synchronously from
-  NOVA's worker thread and do not depend on the optional APC path. The engine
+  MYTHOS's worker thread and do not depend on the optional APC path. The engine
   method additionally calls the game's own functions
   (resolved by RVA, verified by signature, with a bounded executable-section
   scan fallback and a runtime-measured input scale). Every method uses the
@@ -255,22 +265,22 @@ Verified live against the installed Steam build `25228199`
 - Name pool and world anchor resolved through the known RVAs; the bounded
   data-section and signature fallbacks were also observed resolving when the
   stale dump RVAs were still in use.
-- Settings persisted to `%LOCALAPPDATA%\NOVA\settings.json` and reloaded on the
+- Settings persisted to `%LOCALAPPDATA%\MYTHOS\settings.json` and reloaded on the
   next injection; the corrupt/type-invalid recovery path is unit-tested.
-- `DELETE` stopped NOVA cleanly (`settings flushed on stop` / `NOVA stopped` in
+- `DELETE` stopped MYTHOS cleanly (`settings flushed on stop` / `MYTHOS stopped` in
   the log) and the game stayed alive and responsive. Once the game-thread path
   is opened the module is pinned: it stays mapped until the game exits, so a
   restart is required to inject again.
 - Alt-Tab away from the game hides the overlay (no ESP over other windows).
 
-Remaining manual pass (owner-run, game running with NOVA injected): ESP over
+Remaining manual pass (owner-run, game running with MYTHOS injected): ESP over
 other pawns in a private/bots match (team/drone/dead filters), projection
 tuning, search/clear and keyboard navigation in the panel, map-transition and
 death/spectating recovery, minimize/restore, and DPI/monitor moves.
 
 Vischeck live pass: enable **Aim → Allow engine calls (unsafe)** and
-**Players → Dim occluded** first. Expected in Diagnostics and `nova.log`:
-`LineOfSightTo via ProcessEvent on NOVA worker (ProcessEvent verified at RVA
+**Players → Dim occluded** first. Expected in Diagnostics and `mythos.log`:
+`LineOfSightTo via ProcessEvent on MYTHOS worker (ProcessEvent verified at RVA
 0x034E3320...)`, `queries > 0`, `visible > 0`, `hidden > 0`, `faults = 0`. A
 player moving behind solid cover should turn grey; with **Visible only** they
 should disappear. If `faults` becomes nonzero, disable engine calls

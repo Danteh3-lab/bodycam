@@ -6,24 +6,24 @@
 // the patch-surviving fallback) and invokes them with SEH protection. The
 // direct RotationInput/ControlRotation writes are the guarded fallbacks.
 //
-// This is one of the only NOVA.dll modules allowed to call engine functions
-// or write game memory. nova_core never includes or consumes it. Direct
+// This is one of the only MYTHOS.dll modules allowed to call engine functions
+// or write game memory. mythos_core never includes or consumes it. Direct
 // RotationInput/ControlRotation writes intentionally mirror bodycam-master and
-// execute synchronously on NOVA's worker thread; only engine function calls
+// execute synchronously on MYTHOS's worker thread; only engine function calls
 // require the optional game-thread APC path.
 // ============================================================================
 #pragma once
 #include "GameThread.hpp"
 
-#include "nova/ReadOnlyMemory.hpp"
-#include "nova/Scan.hpp"
-#include "nova/UnrealTypes.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
+#include "mythos/Scan.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 class EngineCalls {
 public:
@@ -49,7 +49,7 @@ public:
 		std::string message = "not resolved yet";
 	};
 
-	EngineCalls(const nova::ReadOnlyMemory& memory, GameThreadExecutor& gameThread);
+	EngineCalls(const mythos::ReadOnlyMemory& memory, GameThreadExecutor& gameThread);
 
 	// Owner opt-in for engine function calls. Off by default: calling engine
 	// code can re-enter it at an unsafe phase.
@@ -90,7 +90,7 @@ public:
 	                        double maxStep);
 
 	// Legacy method: overwrite ControlRotation directly (no APC).
-	bool SetControlRotation(uintptr_t playerController, const nova::FRotator& rotation);
+	bool SetControlRotation(uintptr_t playerController, const mythos::FRotator& rotation);
 
 private:
 	using AddInputFn = void(__fastcall*)(void* playerController, float value);
@@ -104,10 +104,10 @@ private:
 	void SyncStatus();
 	bool InvokeOnGameThread(AddInputFn function, uintptr_t playerController, float value);
 
-	const nova::ReadOnlyMemory& memory_;
+	const mythos::ReadOnlyMemory& memory_;
 	GameThreadExecutor& gameThread_;
-	nova::ModuleScanner scanner_;
-	nova::ModuleScanner::Cursor scanCursor_;
+	mythos::ModuleScanner scanner_;
+	mythos::ModuleScanner::Cursor scanCursor_;
 	bool scanStarted_ = false;
 	uintptr_t pitchAddress_ = 0;
 	uintptr_t yawAddress_ = 0;
@@ -121,4 +121,4 @@ private:
 	Status status_;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

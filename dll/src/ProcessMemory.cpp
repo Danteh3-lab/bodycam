@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
 
 __declspec(noinline) bool GuardedCopy(void* destination, const void* source, size_t size) {
@@ -36,17 +36,17 @@ bool ProcessMemory::Attach(const wchar_t* moduleName) {
 	return info_.valid();
 }
 
-nova::ModuleInfo ProcessMemory::module() const {
+mythos::ModuleInfo ProcessMemory::module() const {
 	return info_;
 }
 
 bool ProcessMemory::read(uintptr_t address, void* out, size_t size) const {
 	if (out == nullptr || size == 0) return false;
-	if (!nova::IsPlausibleRange(address, size)) return false;
+	if (!mythos::IsPlausibleRange(address, size)) return false;
 	return GuardedCopy(out, reinterpret_cast<const void*>(address), size);
 }
 
-int ProcessMemory::sections(bool executable, nova::SectionRange* out, int maxOut) const {
+int ProcessMemory::sections(bool executable, mythos::SectionRange* out, int maxOut) const {
 	if (out == nullptr || maxOut <= 0) return 0;
 	if (!info_.valid()) return 0;
 
@@ -86,7 +86,7 @@ int ProcessMemory::sections(bool executable, nova::SectionRange* out, int maxOut
 		const size_t size = header.Misc.VirtualSize;
 		if (size == 0 || size > 0x10000000) continue;
 
-		nova::SectionRange& range = out[written];
+		mythos::SectionRange& range = out[written];
 		range.start = info_.base + header.VirtualAddress;
 		range.size = size;
 		range.characteristics = header.Characteristics;
@@ -95,4 +95,4 @@ int ProcessMemory::sections(bool executable, nova::SectionRange* out, int maxOut
 	return written;
 }
 
-} // namespace nova_host
+} // namespace mythos_host

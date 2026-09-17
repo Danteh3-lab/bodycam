@@ -1,15 +1,15 @@
 // ============================================================================
-// NOVA.dll entry point.
+// MYTHOS.dll entry point.
 //
 // DllMain stays minimal: thread notifications are disabled (we do not need
 // them) and a single bootstrap thread starts all initialization after the
-// loader lock has been released. DELETE stops NOVA; once the game-thread path
+// loader lock has been released. DELETE stops MYTHOS; once the game-thread path
 // is opened the module is pinned and stays mapped until the game exits. The
 // game process is never terminated.
 // ============================================================================
 #include "Runtime.hpp"
 
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <Windows.h>
 
@@ -28,17 +28,17 @@ DWORD WINAPI BootstrapThread(LPVOID parameter) {
 	// non-throwing so it is safe on every path.
 	int exitCode = 1;
 	try {
-		exitCode = nova_host::Runtime::Instance().Run(module);
+		exitCode = mythos_host::Runtime::Instance().Run(module);
 	} catch (const std::exception& exception) {
-		nova_host::Runtime::Instance().Shutdown();
+		mythos_host::Runtime::Instance().Shutdown();
 		try {
-			nova::LogError(std::string("unhandled exception during runtime: ") + exception.what());
+			mythos::LogError(std::string("unhandled exception during runtime: ") + exception.what());
 		} catch (...) {
 		}
 	} catch (...) {
-		nova_host::Runtime::Instance().Shutdown();
+		mythos_host::Runtime::Instance().Shutdown();
 		try {
-			nova::LogError("unhandled exception during runtime");
+			mythos::LogError("unhandled exception during runtime");
 		} catch (...) {
 		}
 	}

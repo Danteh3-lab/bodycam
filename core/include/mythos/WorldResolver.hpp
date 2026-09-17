@@ -9,17 +9,17 @@
 // budget so rendering is never blocked.
 // ============================================================================
 #pragma once
-#include "nova/Diagnostics.hpp"
-#include "nova/NamePool.hpp"
-#include "nova/ReadOnlyMemory.hpp"
-#include "nova/Scan.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
+#include "mythos/Scan.hpp"
 
 #include "Offsets.hpp"
 
 #include <cstddef>
 #include <cstdint>
 
-namespace nova {
+namespace mythos {
 
 enum class ResolveStage : uint8_t {
 	Ok = 0,
@@ -202,4 +202,4 @@ private:
 	int recoverLimit_ = Offsets::Scan::RecoverLimitMin;
 };
 
-} // namespace nova
+} // namespace mythos

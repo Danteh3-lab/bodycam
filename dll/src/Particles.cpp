@@ -3,8 +3,11 @@
 #include <cmath>
 #include <cstdlib>
 
-namespace nova_host {
+namespace mythos_host {
 namespace {
+
+constexpr float kConnectionDistance = 70.0f;
+constexpr int kMaxConnections = 80;
 
 float RandomRange(float low, float high) {
 	const float unit = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
@@ -87,13 +90,41 @@ void ParticleField::Draw(ImDrawList* drawList, const ImVec2& min, const ImVec2& 
 		if (particle.y < min.y) particle.y = max.y;
 		if (particle.y > max.y) particle.y = min.y;
 
+	}
+
+	// Constellation lines are drawn first so points remain crisp above them.
+	int connections = 0;
+	const float maxDistanceSquared = kConnectionDistance * kConnectionDistance;
+	for (size_t i = 0; i < particles_.size() && connections < kMaxConnections; ++i) {
+		const Particle& a = particles_[i];
+		float nearestDistanceSquared = maxDistanceSquared;
+		size_t nearest = particles_.size();
+		for (size_t j = i + 1; j < particles_.size(); ++j) {
+			const float dx = particles_[j].x - a.x;
+			const float dy = particles_[j].y - a.y;
+			const float distanceSquared = dx * dx + dy * dy;
+			if (distanceSquared <= nearestDistanceSquared) {
+				nearestDistanceSquared = distanceSquared;
+				nearest = j;
+			}
+		}
+		if (nearest == particles_.size()) continue;
+		const float distance = std::sqrt(nearestDistanceSquared);
+		const int alpha = static_cast<int>(26.0f * (1.0f - distance / kConnectionDistance));
+		if (alpha > 0) {
+			drawList->AddLine(ImVec2(a.x, a.y), ImVec2(particles_[nearest].x, particles_[nearest].y),
+			                  IM_COL32(199, 176, 255, alpha), 1.0f);
+			++connections;
+		}
+	}
+	for (const Particle& particle : particles_) {
 		const float opacity = 0.30f + 0.15f * static_cast<float>(
 			std::sin(time * static_cast<double>(particle.speed) * 2.0 + static_cast<double>(particle.phase)));
 		const int alpha = static_cast<int>(opacity * 255.0f);
 		drawList->AddCircleFilled(ImVec2(particle.x, particle.y), 1.8f,
-		                          IM_COL32(120, 220, 228, alpha), 12);
+		                          IM_COL32(199, 176, 255, alpha), 12);
 	}
 	drawList->PopClipRect();
 }
 
-} // namespace nova_host
+} // namespace mythos_host

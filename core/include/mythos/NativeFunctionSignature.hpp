@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace nova {
+namespace mythos {
 
 inline constexpr std::size_t kVerifiedNativePrologueSize =
 	Offsets::Signatures::NativeFunctionPrologueSize;
@@ -18,4 +18,4 @@ inline constexpr std::size_t kVerifiedNativePrologueSize =
 // verified build's bytes exactly. Null and short buffers are rejected.
 [[nodiscard]] bool MatchesVerifiedNativePrologue(const uint8_t* bytes, std::size_t size);
 
-} // namespace nova
+} // namespace mythos

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 
-namespace nova {
+namespace mythos {
 
 // Entity rejection counters collected while building a snapshot. Every entity
 // the roster offers is accounted for exactly once.
@@ -50,4 +50,4 @@ struct ReadStats {
 	void reset() { failures = 0; successes = 0; }
 };
 
-} // namespace nova
+} // namespace mythos

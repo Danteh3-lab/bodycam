@@ -1,10 +1,10 @@
-#include "nova/BoxMath.hpp"
+#include "mythos/BoxMath.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-namespace nova {
+namespace mythos {
 
 BoxRect ComputeCapsuleBox(const Vec2d& top, const Vec2d& bottom,
                           double radius, double halfHeight) {
@@ -81,4 +81,4 @@ Color4 HealthColor(float percent) {
 	return Color4{ 1.0f, 40.0f / 255.0f, 40.0f / 255.0f, 1.0f };
 }
 
-} // namespace nova
+} // namespace mythos

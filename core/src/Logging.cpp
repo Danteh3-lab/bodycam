@@ -1,4 +1,4 @@
-#include "nova/Logging.hpp"
+#include "mythos/Logging.hpp"
 
 #include <Windows.h>
 
@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <system_error>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 std::string CurrentTimestamp() {
@@ -45,14 +45,14 @@ Logger& Logger::Instance() {
 std::filesystem::path Logger::DefaultLogDirectory() {
 	wchar_t buffer[MAX_PATH] = {};
 	const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
-	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"NOVA") / L"logs";
-	return std::filesystem::path(buffer) / L"NOVA" / L"logs";
+	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"MYTHOS") / L"logs";
+	return std::filesystem::path(buffer) / L"MYTHOS" / L"logs";
 }
 
 bool Logger::Open(const std::filesystem::path& directory, const std::string& buildFingerprint) {
 	std::lock_guard<std::mutex> lock(mutex_);
 	directory_ = directory;
-	path_ = directory / L"nova.log";
+	path_ = directory / L"mythos.log";
 	header_ = buildFingerprint;
 
 	std::error_code code;
@@ -116,4 +116,4 @@ void LogInfo(const std::string& message) { Logger::Instance().Write(LogLevel::In
 void LogWarn(const std::string& message) { Logger::Instance().Write(LogLevel::Warn, message); }
 void LogError(const std::string& message) { Logger::Instance().Write(LogLevel::Error, message); }
 
-} // namespace nova
+} // namespace mythos

@@ -6,13 +6,13 @@
 // AimController applies the resulting step through the engine.
 // ============================================================================
 #pragma once
-#include "nova/GameSnapshot.hpp"
-#include "nova/Projection.hpp"
-#include "nova/UnrealTypes.hpp"
+#include "mythos/GameSnapshot.hpp"
+#include "mythos/Projection.hpp"
+#include "mythos/UnrealTypes.hpp"
 
 #include <cstddef>
 
-namespace nova {
+namespace mythos {
 
 // View rotation (degrees) pointing from `source` to `target`, matching the
 // legacy convention: pitch = atan2(dz, horizontal distance), yaw = atan2(dy, dx).
@@ -55,4 +55,4 @@ struct AimSelectionSettings {
                                    const AimSelectionSettings& settings,
                                    AimTarget& out);
 
-} // namespace nova
+} // namespace mythos

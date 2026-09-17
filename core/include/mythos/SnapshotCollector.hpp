@@ -3,17 +3,17 @@
 // Runs on the worker thread only; never touches the render loop.
 // ============================================================================
 #pragma once
-#include "nova/Diagnostics.hpp"
-#include "nova/GameSnapshot.hpp"
-#include "nova/NamePool.hpp"
-#include "nova/ReadOnlyMemory.hpp"
-#include "nova/Skeleton.hpp"
-#include "nova/VisibilityProbe.hpp"
+#include "mythos/Diagnostics.hpp"
+#include "mythos/GameSnapshot.hpp"
+#include "mythos/NamePool.hpp"
+#include "mythos/ReadOnlyMemory.hpp"
+#include "mythos/Skeleton.hpp"
+#include "mythos/VisibilityProbe.hpp"
 
 #include <cstdint>
 #include <unordered_map>
 
-namespace nova {
+namespace mythos {
 
 struct CaptureSettings {
 	bool   name = true;
@@ -82,4 +82,4 @@ private:
 // Class-name based entity classification, shared with tests.
 [[nodiscard]] PlayerKind ClassifyByClassName(const char* className);
 
-} // namespace nova
+} // namespace mythos

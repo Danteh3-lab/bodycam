@@ -1,7 +1,7 @@
 // ============================================================================
-// OverlayConfig — versioned NOVA settings (schema v2).
+// OverlayConfig — versioned MYTHOS settings (schema v2).
 //
-// Persisted to %LOCALAPPDATA%\NOVA\settings.json with atomic replace.
+// Persisted to %LOCALAPPDATA%\MYTHOS\settings.json with atomic replace.
 // Invalid values are clamped on load; a corrupt file is preserved under a
 // timestamped backup before defaults are restored.
 // ============================================================================
@@ -9,7 +9,7 @@
 #include <filesystem>
 #include <string>
 
-namespace nova {
+namespace mythos {
 
 inline constexpr int kConfigSchemaVersion = 2;
 
@@ -98,6 +98,13 @@ enum class ConfigSource {
 	Migrated,
 };
 
+enum class ConfigImportStatus {
+	NotNeeded,
+	Imported,
+	InvalidSource,
+	Failed,
+};
+
 struct ConfigLoadReport {
 	ConfigSource source = ConfigSource::Defaults;
 	std::filesystem::path backupPath;
@@ -109,7 +116,7 @@ struct ConfigLoadReport {
 // Clamps every value into its supported range.
 void ClampOverlayConfig(OverlayConfig& config);
 
-// Serialization helpers (schema v1).
+// Serialization helpers (schema v2; older schema versions migrate on read).
 [[nodiscard]] std::string SerializeOverlayConfig(const OverlayConfig& config);
 [[nodiscard]] OverlayConfig DeserializeOverlayConfig(const std::string& text, ConfigLoadReport& report);
 
@@ -117,8 +124,16 @@ void ClampOverlayConfig(OverlayConfig& config);
 [[nodiscard]] OverlayConfig LoadOverlayConfig(const std::filesystem::path& path,
                                               ConfigLoadReport* report = nullptr);
 
+// On first run, import a valid legacy settings file into `destination`.
+// The source is read only and is never renamed, deleted, backed up, or
+// otherwise modified. The destination is written atomically through the same
+// path used for normal MYTHOS saves.
+[[nodiscard]] ConfigImportStatus ImportOverlayConfigIfMissing(
+	const std::filesystem::path& source, const std::filesystem::path& destination,
+	std::string* detail = nullptr);
+
 // Atomic save (temp file + replace). Returns false and fills `error` on failure.
 bool SaveOverlayConfig(const std::filesystem::path& path, const OverlayConfig& config,
                        std::string* error = nullptr);
 
-} // namespace nova
+} // namespace mythos

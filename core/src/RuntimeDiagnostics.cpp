@@ -1,6 +1,6 @@
-#include "nova/RuntimeDiagnostics.hpp"
+#include "mythos/RuntimeDiagnostics.hpp"
 
-namespace nova {
+namespace mythos {
 
 const char* RuntimeStateName(RuntimeState state) {
 	switch (state) {
@@ -16,7 +16,7 @@ const char* RuntimeStateName(RuntimeState state) {
 
 const char* RuntimeStateDescription(RuntimeState state) {
 	switch (state) {
-	case RuntimeState::Starting: return "NOVA is starting its worker threads.";
+	case RuntimeState::Starting: return "MYTHOS is starting its worker threads.";
 	case RuntimeState::WaitingForWindow: return "Waiting for the game window and a loaded world.";
 	case RuntimeState::Resolving: return "Locating and validating the read-only world chain.";
 	case RuntimeState::Ready: return "World, camera, roster and name pool are validated.";
@@ -26,4 +26,4 @@ const char* RuntimeStateDescription(RuntimeState state) {
 	return "Unknown state.";
 }
 
-} // namespace nova
+} // namespace mythos

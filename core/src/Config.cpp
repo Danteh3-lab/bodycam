@@ -1,4 +1,4 @@
-#include "nova/Config.hpp"
+#include "mythos/Config.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -11,7 +11,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 using nlohmann::json;
@@ -43,8 +43,8 @@ int ClampInt(int value, int low, int high, int fallback) {
 std::filesystem::path DefaultConfigPath() {
 	wchar_t buffer[MAX_PATH] = {};
 	const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
-	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"NOVA") / L"settings.json";
-	return std::filesystem::path(buffer) / L"NOVA" / L"settings.json";
+	if (length == 0 || length >= MAX_PATH) return std::filesystem::path(L"MYTHOS") / L"settings.json";
+	return std::filesystem::path(buffer) / L"MYTHOS" / L"settings.json";
 }
 
 void ClampOverlayConfig(OverlayConfig& config) {
@@ -172,7 +172,7 @@ OverlayConfig DeserializeOverlayConfig(const std::string& text, ConfigLoadReport
 		const int version = root.value("schema_version", 0);
 		if (version > kConfigSchemaVersion) {
 			report.source = ConfigSource::Defaults;
-			report.detail = "Settings were written by a newer NOVA version.";
+			report.detail = "Settings were written by a newer MYTHOS version.";
 			return config;
 		}
 		report.source = version < kConfigSchemaVersion ? ConfigSource::Migrated
@@ -306,6 +306,52 @@ OverlayConfig LoadOverlayConfig(const std::filesystem::path& path, ConfigLoadRep
 	return config;
 }
 
+ConfigImportStatus ImportOverlayConfigIfMissing(const std::filesystem::path& source,
+                                                const std::filesystem::path& destination,
+                                                std::string* detail) {
+	if (detail != nullptr) detail->clear();
+
+	std::error_code code;
+	const bool destinationExists = std::filesystem::exists(destination, code);
+	if (code) {
+		if (detail != nullptr) *detail = "destination existence check failed: " + code.message();
+		return ConfigImportStatus::Failed;
+	}
+	if (destinationExists) return ConfigImportStatus::NotNeeded;
+
+	code.clear();
+	const bool sourceExists = std::filesystem::exists(source, code);
+	if (code) {
+		if (detail != nullptr) *detail = "legacy settings existence check failed: " + code.message();
+		return ConfigImportStatus::Failed;
+	}
+	if (!sourceExists) return ConfigImportStatus::NotNeeded;
+
+	std::ifstream stream(source, std::ios::binary);
+	if (!stream) {
+		if (detail != nullptr) *detail = "legacy settings file could not be opened";
+		return ConfigImportStatus::InvalidSource;
+	}
+	std::ostringstream buffer;
+	buffer << stream.rdbuf();
+	stream.close();
+
+	ConfigLoadReport sourceReport;
+	OverlayConfig config = DeserializeOverlayConfig(buffer.str(), sourceReport);
+	if (sourceReport.source == ConfigSource::Defaults && !sourceReport.detail.empty()) {
+		if (detail != nullptr) *detail = sourceReport.detail;
+		return ConfigImportStatus::InvalidSource;
+	}
+
+	std::string saveError;
+	if (!SaveOverlayConfig(destination, config, &saveError)) {
+		if (detail != nullptr) *detail = saveError;
+		return ConfigImportStatus::Failed;
+	}
+	if (detail != nullptr) *detail = "legacy settings copied atomically";
+	return ConfigImportStatus::Imported;
+}
+
 bool SaveOverlayConfig(const std::filesystem::path& path, const OverlayConfig& config,
                        std::string* error) {
 	OverlayConfig clamped = config;
@@ -347,4 +393,4 @@ bool SaveOverlayConfig(const std::filesystem::path& path, const OverlayConfig& c
 	return true;
 }
 
-} // namespace nova
+} // namespace mythos

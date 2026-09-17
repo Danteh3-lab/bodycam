@@ -6,24 +6,24 @@
 // loader before defaults take over.
 // ============================================================================
 #pragma once
-#include "nova/Config.hpp"
+#include "mythos/Config.hpp"
 
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <string>
 
-namespace nova_host {
+namespace mythos_host {
 
 class SettingsStore {
 public:
-	void Initialize(const std::filesystem::path& path);
+	void Initialize(const std::filesystem::path& path, const std::filesystem::path& legacySource);
 
 	// Thread-safe copy for the worker thread.
-	[[nodiscard]] nova::OverlayConfig Snapshot() const;
+	[[nodiscard]] mythos::OverlayConfig Snapshot() const;
 
 	// Immediate mutation + mark dirty.
-	void Update(const std::function<void(nova::OverlayConfig&)>& mutate);
+	void Update(const std::function<void(mythos::OverlayConfig&)>& mutate);
 
 	// Debounced persistence; call once per UI frame with a monotonic clock.
 	void Tick(uint64_t nowMs);
@@ -36,8 +36,10 @@ public:
 
 private:
 	mutable std::mutex mutex_;
-	nova::OverlayConfig config_;
-	nova::ConfigLoadReport report_;
+	mythos::OverlayConfig config_;
+	mythos::ConfigLoadReport report_;
+	mythos::ConfigImportStatus importStatus_ = mythos::ConfigImportStatus::NotNeeded;
+	std::string importDetail_;
 	std::filesystem::path path_;
 
 	bool dirty_ = false;
@@ -50,4 +52,4 @@ private:
 	static constexpr uint64_t kDebounceMs = 500;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

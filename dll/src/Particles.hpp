@@ -1,5 +1,5 @@
 // ============================================================================
-// Particles — NOVA's single signature visual.
+// Particles — MYTHOS's constellation signature visual.
 //
 // Drawn behind the menu contents, clipped to the menu rectangle, and fully
 // disabled when Windows animations are off or "Reduce motion" is enabled.
@@ -9,7 +9,7 @@
 
 #include <vector>
 
-namespace nova_host {
+namespace mythos_host {
 
 class ParticleField {
 public:
@@ -37,4 +37,4 @@ private:
 	float spawnTimer_ = 0.0f;
 };
 
-} // namespace nova_host
+} // namespace mythos_host

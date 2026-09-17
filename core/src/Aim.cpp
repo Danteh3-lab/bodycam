@@ -1,8 +1,8 @@
-#include "nova/Aim.hpp"
+#include "mythos/Aim.hpp"
 
 #include <cmath>
 
-namespace nova {
+namespace mythos {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
@@ -132,4 +132,4 @@ bool SelectAimTarget(const GameSnapshot& snapshot,
 	return found;
 }
 
-} // namespace nova
+} // namespace mythos
