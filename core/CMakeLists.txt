@@ -9,6 +9,7 @@ add_library(nova_core STATIC
   src/Skeleton.cpp
   src/SnapshotCollector.cpp
   src/Aim.cpp
+  src/NativeFunctionSignature.cpp
   src/Config.cpp
   src/Logging.cpp
   src/RuntimeDiagnostics.cpp

@@ -200,17 +200,19 @@ the static contract test rejects engine interaction tokens anywhere else.
   direct `RotationInput` write, or the legacy `ControlRotation` overwrite. The
   input scale is measured at runtime (0.05 probe) so a patch cannot silently
   invert the direction. Roll is never written.
-* Vischeck accepts only a signature-verified `ProcessEvent`; an unverified RVA
-  disables the check, and the check itself is off until **Allow engine calls
-  (unsafe)** is enabled. To match bodycam-master, `LineOfSightTo` is invoked
-  synchronously from NOVA's worker thread, with `WasRecentlyRendered` as
-  fallback. This path does not depend on the APC executor and can re-enter the
-  engine at an unsafe phase. Reflected parameter offsets are individually
-  bounds-checked before the parameter block is built. Results are cached for
-  50 ms and fail open: an unresolved or faulting check reports visible, so
-  nothing silently disappears. Query faults are counted in Diagnostics. The
-  cached controller, function and results are dropped on a controller change
-  or map transition.
+* Vischeck accepts only a cross-checked `ProcessEvent`: the measured RVA
+  (`0x034E3320` on Steam build 25228199) and the controller's vtable slot
+  `0x4F` must resolve to the same function, and that function must match the
+  exact 31-byte current-build prologue. A mismatch disables the check, and the
+  check itself is off until **Allow engine calls (unsafe)** is enabled. To
+  match bodycam-master, `LineOfSightTo` is invoked synchronously from NOVA's
+  worker thread, with `WasRecentlyRendered` as fallback. This path does not
+  depend on the APC executor and can re-enter the engine at an unsafe phase.
+  Reflected parameter offsets are individually bounds-checked before the
+  parameter block is built. Results are cached for 50 ms and fail open: an
+  unresolved or faulting check reports visible, so nothing silently
+  disappears. Query faults are counted in Diagnostics. The cached controller,
+  function and results are dropped on a controller change or map transition.
 * The module is pinned when the optional game-thread path is opened, so an APC
   delivered late can never execute in unmapped code; shutdown joins the worker
   and cancels queued tasks first. `DELETE` therefore stops NOVA but leaves the

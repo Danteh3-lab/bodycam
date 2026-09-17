@@ -96,7 +96,7 @@ private:
 	[[nodiscard]] uintptr_t FindFunctionInClassChain(uintptr_t cls, const char* want) const;
 	[[nodiscard]] bool ReadParamLayout(uintptr_t function, ParamLayout& layout, Method method) const;
 	[[nodiscard]] bool Query(uintptr_t pawn, const nova::FVector& cameraLocation) const;
-	[[nodiscard]] bool LooksLikeProcessEvent(uintptr_t function) const;
+	[[nodiscard]] bool VerifyProcessEvent(uintptr_t function) const;
 	[[nodiscard]] bool IsExecutable(uintptr_t address, std::size_t size) const;
 
 	const nova::ReadOnlyMemory& memory_;

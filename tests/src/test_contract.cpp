@@ -274,6 +274,27 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	CHECK(ContainsToken(gameThread, "GET_MODULE_HANDLE_EX_FLAG_PIN"));
 	CHECK(ContainsToken(gameThread, "CancelPending"));
 
+	// ProcessEvent identity is the measured one, cross-checked RVA <-> vtable,
+	// with no speculative slots and no "any executable address" fallback.
+	const std::string offsets = StripCommentsAndLiterals(ReadFile(root / "Offsets.hpp"));
+	CHECK(ContainsToken(offsets, "0x034E3320"));
+	CHECK(ContainsToken(offsets, "0x4F"));
+	CHECK(ContainsToken(offsets, "NativeFunctionPrologue"));
+	CHECK(ContainsToken(vischeck, "ProcessEventIdx"));
+	CHECK(ContainsToken(vischeck, "rvaCandidate"));
+	CHECK(ContainsToken(vischeck, "slotCandidate"));
+	CHECK(ContainsToken(vischeck, "MatchesVerifiedNativePrologue"));
+	CHECK(!ContainsToken(vischeck, "LooksLikeProcessEvent"));
+	CHECK(!ContainsToken(vischeck, "0x42"));
+	CHECK(!ContainsToken(vischeck, "0x43"));
+	CHECK(!ContainsToken(vischeck, "0x44"));
+	// Diagnostic messages are string literals, so check the raw source.
+	const std::string vischeckRaw = ReadFile(dllRoot / "VisCheck.cpp");
+	CHECK(vischeckRaw.find("ProcessEvent RVA outside the executable image") != std::string::npos);
+	CHECK(vischeckRaw.find("ProcessEvent vtable slot unreadable") != std::string::npos);
+	CHECK(vischeckRaw.find("ProcessEvent RVA/vtable mismatch") != std::string::npos);
+	CHECK(vischeckRaw.find("ProcessEvent signature mismatch") != std::string::npos);
+
 	// Reference-compatible direct methods must not be blocked by the optional
 	// APC path. Keep engine-function methods and ProcessEvent on the executor,
 	// but ensure the two direct-write regions perform their guarded reads and

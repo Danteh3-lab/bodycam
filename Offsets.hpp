@@ -16,6 +16,7 @@
 //     patching, hooks and remote-thread APIs are rejected everywhere.
 // ============================================================================
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 namespace Offsets {
@@ -348,6 +349,24 @@ namespace Offsets {
 		constexpr size_t AddInputTailLength = 25;
 		constexpr size_t AddInputTailArg1   = 7;   // off32 position inside the tail
 		constexpr size_t AddInputTailArg2   = 15;
+
+		// UObject::ProcessEvent prologue, 31 bytes, measured on Steam build
+		// 25228199. The pattern embeds `test dword ptr [rdx+0xB0], 0x400`:
+		// rdx is the UFunction*, 0xB0 is UFunction::FunctionFlags and 0x400 is
+		// the native-function flag. Matching it is semantically specific, so a
+		// drifted or unrelated executable address is rejected.
+		inline constexpr uint8_t NativeFunctionPrologue[] = {
+			0x48, 0x89, 0x5C, 0x24, 0x10,
+			0x48, 0x89, 0x6C, 0x24, 0x18,
+			0x57,
+			0x48, 0x83, 0xEC, 0x20,
+			0xF7, 0x82, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+			0x49, 0x8B, 0xE8,
+			0x48, 0x8B, 0xDA,
+		};
+		constexpr size_t NativeFunctionPrologueSize =
+			sizeof(NativeFunctionPrologue) / sizeof(NativeFunctionPrologue[0]);
+		static_assert(NativeFunctionPrologueSize == 31, "verified prologue is 31 bytes");
 	}
 
 	// ------------------------------------------------------------------------
@@ -411,8 +430,12 @@ namespace Offsets {
 	namespace EngineCalls {
 		constexpr uintptr_t AddPitchInput   = 0x3CB83C0;
 		constexpr uintptr_t AddYawInput     = 0x3CB85D0;
-		constexpr uintptr_t ProcessEvent    = 0x014AB3A0; // [DUMP] hint
-		constexpr uint8_t   ProcessEventIdx = 0x4F;       // [DUMP] vtable slot
+		// [USED] Measured on Steam build 25228199: module base + this RVA and
+		// the controller vtable slot [ProcessEventIdx] both resolve to the same
+		// function. VisCheck requires the equality AND the prologue signature
+		// below before it will invoke anything.
+		constexpr uintptr_t ProcessEvent    = 0x034E3320;
+		constexpr uint8_t   ProcessEventIdx = 0x4F; // UObject::ProcessEvent slot
 	}
 
 	// Vischeck — the UFunction is located by name on the local

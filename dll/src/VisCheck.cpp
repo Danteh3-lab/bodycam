@@ -1,6 +1,7 @@
 #include "VisCheck.hpp"
 
 #include "Offsets.hpp"
+#include "nova/NativeFunctionSignature.hpp"
 
 #include <Windows.h>
 
@@ -111,10 +112,7 @@ void VisCheck::Resolve(uintptr_t playerController) {
 	}
 
 	const uintptr_t processEvent = ResolveProcessEvent(base, playerController);
-	if (processEvent == 0) {
-		status_.message = "UObject::ProcessEvent not resolved";
-		return;
-	}
+	if (processEvent == 0) return; // detailed failure message already set
 
 	uintptr_t cls = 0;
 	if (!memory_.readPointer(playerController + Offsets::UObject::Class, cls) ||
@@ -151,14 +149,16 @@ void VisCheck::Resolve(uintptr_t playerController) {
 }
 
 void VisCheck::SetReadyMessage() {
+	const uintptr_t base = memory_.module().base;
+	const uintptr_t rva =
+		(base != 0 && processEvent_ >= base) ? processEvent_ - base : 0;
 	char buffer[256] = {};
 	std::snprintf(buffer, sizeof(buffer),
-	              "%s via ProcessEvent on NOVA worker (unsafe direct call; fn 0x%llX, "
-	              "params 0x%X%s)",
+	              "%s via ProcessEvent on NOVA worker (ProcessEvent verified at RVA 0x%08llX; "
+	              "unsafe direct call; params 0x%X)",
 	              method_ == Method::LineOfSight ? "LineOfSightTo"
 	                                             : "WasRecentlyRendered (render state)",
-	              static_cast<unsigned long long>(function_), params_.size,
-	              LooksLikeProcessEvent(processEvent_) ? ", verified" : "");
+	              static_cast<unsigned long long>(rva), params_.size);
 	status_.message = buffer;
 }
 
@@ -177,44 +177,54 @@ bool VisCheck::IsExecutable(uintptr_t address, std::size_t size) const {
 	return (information.Protect & executable) != 0;
 }
 
-bool VisCheck::LooksLikeProcessEvent(uintptr_t function) const {
-	if (function == 0 || !IsExecutable(function, 24)) return false;
+bool VisCheck::VerifyProcessEvent(uintptr_t function) const {
+	if (function == 0 || !IsExecutable(function, nova::kVerifiedNativePrologueSize)) {
+		return false;
+	}
 
-	uint8_t bytes[24] = {};
+	uint8_t bytes[nova::kVerifiedNativePrologueSize] = {};
 	if (!memory_.read(function, bytes, sizeof(bytes))) return false;
-
-	static const uint8_t kHead[15] = {
-		0x40, 0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55,
-		0x41, 0x56, 0x41, 0x57, 0x48, 0x81, 0xEC
-	};
-	if (std::memcmp(bytes, kHead, sizeof(kHead)) != 0) return false;
-	return bytes[19] == 0x48 && bytes[20] == 0x8D && bytes[21] == 0x6C && bytes[22] == 0x24;
+	return nova::MatchesVerifiedNativePrologue(bytes, sizeof(bytes));
 }
 
 uintptr_t VisCheck::ResolveProcessEvent(uintptr_t base, uintptr_t playerController) const {
-	const uintptr_t hint = base + Offsets::EngineCalls::ProcessEvent;
-	if (LooksLikeProcessEvent(hint)) return hint;
-
-	if (nova::IsPlausiblePointer(playerController)) {
-		uintptr_t vtable = 0;
-		if (memory_.readPointer(playerController, vtable) && nova::IsPlausiblePointer(vtable)) {
-			const int indices[] = {
-				Offsets::EngineCalls::ProcessEventIdx, 0x42, 0x43, 0x44
-			};
-			for (int index : indices) {
-				uintptr_t function = 0;
-				if (memory_.readPointer(vtable + static_cast<uintptr_t>(index) * sizeof(uintptr_t),
-				                        function) &&
-				    LooksLikeProcessEvent(function)) {
-					return function;
-				}
-			}
-		}
+	// Fail closed, cross-checked: the known RVA and the controller's
+	// UObject::ProcessEvent vtable slot must resolve to the same function, and
+	// that function must match the verified 31-byte prologue. No speculative
+	// slots and no "any executable address" fallback.
+	const uintptr_t rvaCandidate = base + Offsets::EngineCalls::ProcessEvent;
+	if (!IsExecutable(rvaCandidate, nova::kVerifiedNativePrologueSize)) {
+		status_.message = "ProcessEvent RVA outside the executable image";
+		return 0;
 	}
 
-	// Fail closed: an unverified RVA is never accepted. An offset drift must
-	// disable the vischeck, not invoke an unrelated function.
-	return 0;
+	uintptr_t vtable = 0;
+	if (!nova::IsPlausiblePointer(playerController) ||
+	    !memory_.readPointer(playerController, vtable) ||
+	    !nova::IsPlausiblePointer(vtable)) {
+		status_.message = "ProcessEvent vtable slot unreadable";
+		return 0;
+	}
+
+	uintptr_t slotCandidate = 0;
+	const uintptr_t slotOffset =
+		static_cast<uintptr_t>(Offsets::EngineCalls::ProcessEventIdx) * sizeof(uintptr_t);
+	if (!memory_.readPointer(vtable + slotOffset, slotCandidate)) {
+		status_.message = "ProcessEvent vtable slot unreadable";
+		return 0;
+	}
+
+	if (rvaCandidate != slotCandidate) {
+		status_.message = "ProcessEvent RVA/vtable mismatch";
+		return 0;
+	}
+
+	if (!VerifyProcessEvent(rvaCandidate)) {
+		status_.message = "ProcessEvent signature mismatch";
+		return 0;
+	}
+
+	return rvaCandidate;
 }
 
 uintptr_t VisCheck::FindFunctionInClassChain(uintptr_t cls, const char* want) const {

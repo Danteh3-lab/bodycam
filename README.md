@@ -175,6 +175,13 @@ slot at RVA `0x09C231B8`. They are resolved from their RVAs first and only
 trusted after full validation; bounded signature and data-section scans are the
 fallbacks, with retry backoff and a bounded rescan policy.
 
+The `ProcessEvent` identity was re-measured on the same build: RVA
+`0x034E3320` and the controller's `UObject::ProcessEvent` vtable slot `0x4F`
+both resolve to the same function. VisCheck requires that equality **and** an
+exact match of the 31-byte current-build prologue (it embeds
+`test dword ptr [rdx+0xB0], 0x400`, i.e. `UFunction::FunctionFlags`); a failed
+check disables the vischeck instead of invoking an unrelated function.
+
 Build gating is enforced on the PE identity, not just a version string:
 
 - The profile pins `SizeOfImage`, `TimeDateStamp` and `CheckSum`
@@ -259,7 +266,16 @@ Verified live against the installed Steam build `25228199`
 Remaining manual pass (owner-run, game running with NOVA injected): ESP over
 other pawns in a private/bots match (team/drone/dead filters), projection
 tuning, search/clear and keyboard navigation in the panel, map-transition and
-death/spectating recovery, minimize/restore, and DPI/monitor moves. The aim and
-vischeck paths need their live pass too (targeting feel, input-scale
-calibration, `LineOfSightTo` resolution); their pure parts are unit-tested. The
+death/spectating recovery, minimize/restore, and DPI/monitor moves.
+
+Vischeck live pass: enable **Aim → Allow engine calls (unsafe)** and
+**Players → Dim occluded** first. Expected in Diagnostics and `nova.log`:
+`LineOfSightTo via ProcessEvent on NOVA worker (ProcessEvent verified at RVA
+0x034E3320...)`, `queries > 0`, `visible > 0`, `hidden > 0`, `faults = 0`. A
+player moving behind solid cover should turn grey; with **Visible only** they
+should disappear. If `faults` becomes nonzero, disable engine calls
+immediately. If resolution succeeds but every result stays visible, the next
+investigation point is the reflected `LineOfSightTo` parameter layout, not
+`ProcessEvent`. The aim and vischeck paths need their live pass too (targeting
+feel, input-scale calibration); their pure parts are unit-tested. The
 deterministic test target covers the logic behind every one of these paths.
