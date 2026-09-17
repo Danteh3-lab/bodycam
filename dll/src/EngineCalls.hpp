@@ -7,7 +7,10 @@
 // direct RotationInput/ControlRotation writes are the guarded fallbacks.
 //
 // This is one of the only NOVA.dll modules allowed to call engine functions
-// or write game memory. nova_core never includes or consumes it.
+// or write game memory. nova_core never includes or consumes it. Direct
+// RotationInput/ControlRotation writes intentionally mirror bodycam-master and
+// execute synchronously on NOVA's worker thread; only engine function calls
+// require the optional game-thread APC path.
 // ============================================================================
 #pragma once
 #include "GameThread.hpp"
@@ -67,8 +70,9 @@ public:
 	[[nodiscard]] bool enginePathVerified() const {
 		return engineCallsEnabled_ && ready() && gameThread_.verified();
 	}
-	// Direct rotation writes are queued on the game thread too; without the
-	// verified path they are unavailable as well.
+	// Kept for diagnostics and the opt-in engine/vischeck path. Direct rotation
+	// writes intentionally do not consult this gate; they mirror bodycam-master
+	// and run as guarded worker-thread read/modify/writes.
 	[[nodiscard]] bool gameThreadVerified() const { return gameThread_.verified(); }
 	[[nodiscard]] const Status& status() const { return status_; }
 	[[nodiscard]] double yawScale() const { return yawScale_; }
@@ -81,11 +85,11 @@ public:
 	bool AddLookInput(uintptr_t playerController, double deltaYaw, double deltaPitch,
 	                  double maxStep);
 
-	// Same delta written straight into RotationInput (no engine call).
+	// Same delta written straight into RotationInput (no engine call or APC).
 	bool AddLookInputDirect(uintptr_t playerController, double deltaYaw, double deltaPitch,
 	                        double maxStep);
 
-	// Legacy method: overwrite ControlRotation directly.
+	// Legacy method: overwrite ControlRotation directly (no APC).
 	bool SetControlRotation(uintptr_t playerController, const nova::FRotator& rotation);
 
 private:

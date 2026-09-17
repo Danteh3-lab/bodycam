@@ -183,14 +183,18 @@ the static contract test rejects engine interaction tokens anywhere else.
   the head bone and a 180° cap, and engages only while the fire button is held.
   Every method writes the same capped step; the legacy `ControlRotation` path
   included.
-* Engine functions run only on the game thread and only when the owner
-  enables **Allow engine calls (unsafe)**. `GameThreadExecutor` proves a
+* Aim capture retains candidates independently of ESP's team, dead, drone and
+  distance presentation filters. The overlay applies those filters while
+  rendering, and aim selection applies only its own teammate/visibility rules.
+* `AddYawInput` / `AddPitchInput` run only on the game thread and only when the
+  owner enables **Allow engine calls (unsafe)**. `GameThreadExecutor` proves a
   user-mode APC round trip to the window-owning thread at startup (no hooks)
-  and queues every method there, including the direct `RotationInput` /
-  `ControlRotation` writes; a timeout cancels a not-yet-started task and
-  latches failure. Thread identity alone does not prove a safe engine phase,
-  so engine calls stay off by default and are never retried through another
-  method. When the path is not verified, no method is attempted.
+  and queues those input calls; a timeout cancels a not-yet-started task
+  and latches failure. Thread identity alone does not prove a safe engine phase,
+  so the method stays off by default and is never retried through another
+  method. The direct `RotationInput` and `ControlRotation` methods intentionally
+  mirror bodycam-master and use guarded worker-thread writes instead, so they
+  remain available when the APC path is unavailable.
 * Application methods: the engine's `AddYawInput`/`AddPitchInput` (verified by
   prologue + tail signature, bounded executable-section scan fallback), a
   direct `RotationInput` write, or the legacy `ControlRotation` overwrite. The
@@ -198,13 +202,16 @@ the static contract test rejects engine interaction tokens anywhere else.
   invert the direction. Roll is never written.
 * Vischeck accepts only a signature-verified `ProcessEvent`; an unverified RVA
   disables the check, and the check itself is off until **Allow engine calls
-  (unsafe)** is enabled. `LineOfSightTo` is called on the game thread, with
-  `WasRecentlyRendered` as fallback. Reflected parameter offsets are
-  individually bounds-checked before the parameter block is built. Results are
-  cached for 50 ms and fail open: an unresolved or faulting check reports
-  visible, so nothing silently disappears. The cached controller, function and
-  results are dropped on a controller change or map transition.
-* The module is pinned when the game-thread path is opened, so an APC
+  (unsafe)** is enabled. To match bodycam-master, `LineOfSightTo` is invoked
+  synchronously from NOVA's worker thread, with `WasRecentlyRendered` as
+  fallback. This path does not depend on the APC executor and can re-enter the
+  engine at an unsafe phase. Reflected parameter offsets are individually
+  bounds-checked before the parameter block is built. Results are cached for
+  50 ms and fail open: an unresolved or faulting check reports visible, so
+  nothing silently disappears. Query faults are counted in Diagnostics. The
+  cached controller, function and results are dropped on a controller change
+  or map transition.
+* The module is pinned when the optional game-thread path is opened, so an APC
   delivered late can never execute in unmapped code; shutdown joins the worker
   and cancels queued tasks first. `DELETE` therefore stops NOVA but leaves the
   pinned module mapped: restart the game to inject again.

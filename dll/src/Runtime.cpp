@@ -117,7 +117,10 @@ nova::CaptureSettings Runtime::ToCaptureSettings(const nova::OverlayConfig& conf
 	capture.hideDead = config.players.hideDead;
 	capture.visibility = config.players.visibleOnly || config.players.dimOccluded ||
 	                     config.aim.visibleOnly;
-	capture.maxDistanceMeters = static_cast<double>(config.players.maxDistance);
+	capture.retainAimCandidates = config.aim.enabled || config.aim.softAim;
+	capture.maxDistanceMeters = capture.retainAimCandidates
+		? 0.0
+		: static_cast<double>(config.players.maxDistance);
 	return capture;
 }
 
@@ -189,7 +192,7 @@ int Runtime::Run(HMODULE module) {
 	resolver_ = std::make_unique<nova::WorldResolver>(memory_, *names_);
 	gameThread_ = std::make_unique<GameThreadExecutor>();
 	engineCalls_ = std::make_unique<EngineCalls>(memory_, *gameThread_);
-	vischeck_ = std::make_unique<VisCheck>(memory_, *names_, *gameThread_);
+	vischeck_ = std::make_unique<VisCheck>(memory_, *names_);
 	collector_ = std::make_unique<nova::SnapshotCollector>(memory_, *names_, vischeck_.get());
 	aim_ = std::make_unique<AimController>(memory_, *engineCalls_);
 
@@ -227,7 +230,9 @@ int Runtime::Run(HMODULE module) {
 	}
 	nova::LogInfo("target window found");
 
-	// Prove the game-thread APC path before any engine interaction is offered.
+	// Prove the optional game-thread APC path before the AddYawInput/AddPitchInput
+	// method is offered. Direct rotation writes and the separately opted-in,
+	// reference-compatible vischeck do not depend on this probe.
 	gameThread_->Initialize(targetWindow_);
 	nova::LogInfo("game-thread path: " + gameThread_->message());
 
@@ -358,14 +363,21 @@ void Runtime::WorkerLoopImpl() {
 			if (!resolved || !names_->ready()) {
 				(void)resolver_->PumpFallback(startMs);
 			}
-			// Quarantined engine interaction: engine function calls and the
-			// ProcessEvent vischeck run only after the owner opts in and the
-			// game-thread path is verified. Direct rotation writes need only
-			// the game-thread path.
+			// Quarantined engine interaction: all calls require owner opt-in.
+			// AddYawInput/AddPitchInput additionally require the verified APC path;
+			// the reference-compatible ProcessEvent vischeck and direct rotation
+			// writes run synchronously on this worker. When aim is active, capture
+			// retains candidates hidden by ESP; the renderer applies ESP-only
+			// filters after aim selection.
 			engineCalls_->SetEngineCallsEnabled(config.unsafeEngineCalls);
 			vischeck_->SetEngineCallsEnabled(config.unsafeEngineCalls);
 			engineCalls_->Resolve(kEngineScanStepBytes);
 			vischeck_->Tick(resolver_->context().playerController);
+			const std::string& vischeckMessage = vischeck_->status().message;
+			if (vischeckMessage != lastVischeckMessage_) {
+				lastVischeckMessage_ = vischeckMessage;
+				nova::LogInfo("vischeck: " + vischeckMessage);
+			}
 		}
 
 		nova::GameSnapshotPtr snapshot = collector_->Capture(

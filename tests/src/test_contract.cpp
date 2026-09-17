@@ -250,7 +250,8 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 
 	// The quarantine modules must actually contain their approved APIs.
 	const std::filesystem::path dllRoot = root / "dll" / "src";
-	const std::string engine = StripCommentsAndLiterals(ReadFile(dllRoot / "EngineCalls.cpp"));
+	const std::string engineSource = ReadFile(dllRoot / "EngineCalls.cpp");
+	const std::string engine = StripCommentsAndLiterals(engineSource);
 	const std::string vischeck = StripCommentsAndLiterals(ReadFile(dllRoot / "VisCheck.cpp"));
 	const std::string vischeckHeader =
 		StripCommentsAndLiterals(ReadFile(dllRoot / "VisCheck.hpp"));
@@ -262,12 +263,44 @@ NOVA_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	CHECK(ContainsToken(engine, "Offsets::Aim"));
 	CHECK(ContainsToken(vischeck, "ProcessEvent"));
 	CHECK(ContainsToken(vischeck, "IsVisible"));
+	CHECK(ContainsToken(vischeck, "SafeProcessEvent"));
 	CHECK(ContainsToken(vischeckHeader, "VisibilityProbe"));
+	CHECK(!ContainsToken(vischeck, "gameThread_.Execute"));
+	CHECK(!ContainsToken(vischeck, "gameThread_.verified"));
+	CHECK(!ContainsToken(vischeckHeader, "GameThread"));
 	CHECK(ContainsToken(aim, "ControlRotation"));
 	CHECK(ContainsToken(aim, "SelectAimTarget"));
 	CHECK(ContainsToken(gameThread, "QueueUserAPC"));
 	CHECK(ContainsToken(gameThread, "GET_MODULE_HANDLE_EX_FLAG_PIN"));
 	CHECK(ContainsToken(gameThread, "CancelPending"));
+
+	// Reference-compatible direct methods must not be blocked by the optional
+	// APC path. Keep engine-function methods and ProcessEvent on the executor,
+	// but ensure the two direct-write regions perform their guarded reads and
+	// writes synchronously from NOVA's worker thread.
+	const size_t directStart = engine.find("EngineCalls::AddLookInputDirect");
+	const size_t controlStart = engine.find("EngineCalls::SetControlRotation");
+	CHECK(directStart != std::string::npos);
+	CHECK(controlStart != std::string::npos);
+	if (directStart != std::string::npos && controlStart != std::string::npos &&
+	    directStart < controlStart) {
+		const std::string direct = engine.substr(directStart, controlStart - directStart);
+		CHECK(ContainsToken(direct, "ReadDouble"));
+		CHECK(ContainsToken(direct, "GuardedWriteDouble"));
+		CHECK(!ContainsToken(direct, "gameThread_.Execute"));
+		CHECK(!ContainsToken(direct, "gameThread_.verified"));
+	}
+	// Use the unstripped source only to locate the namespace terminator; the
+	// stripped buffer keeps identical offsets while removing comment text.
+	const size_t controlEnd = engineSource.find("} // namespace nova_host", controlStart);
+	if (controlStart != std::string::npos && controlEnd != std::string::npos &&
+	    controlStart < controlEnd) {
+		const std::string control = engine.substr(controlStart, controlEnd - controlStart);
+		CHECK(ContainsToken(control, "GuardedWriteDouble"));
+		CHECK(!ContainsToken(control, "gameThread_.Execute"));
+		CHECK(!ContainsToken(control, "gameThread_.verified"));
+	}
+	CHECK(!ContainsToken(aim, "gameThreadVerified"));
 
 	// Ordering, not just presence: the module is pinned before any APC can be
 	// queued, and shutdown joins the worker before cancelling queued tasks.

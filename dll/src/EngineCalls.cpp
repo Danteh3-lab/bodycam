@@ -339,7 +339,6 @@ bool EngineCalls::AddLookInput(uintptr_t playerController, double deltaYaw, doub
 bool EngineCalls::AddLookInputDirect(uintptr_t playerController, double deltaYaw, double deltaPitch,
                                      double maxStep) {
 	if (!nova::IsPlausiblePointer(playerController)) return false;
-	if (!gameThread_.verified()) return false;
 
 	if (!(maxStep >= 0.1)) maxStep = 0.1;
 	if (deltaYaw > maxStep) deltaYaw = maxStep;
@@ -347,83 +346,46 @@ bool EngineCalls::AddLookInputDirect(uintptr_t playerController, double deltaYaw
 	if (deltaPitch > maxStep) deltaPitch = maxStep;
 	if (deltaPitch < -maxStep) deltaPitch = -maxStep;
 
-	// Both axes are read-modify-written inside ONE game-thread task so the
-	// engine observes a consistent pair and never a mixed update. All
-	// requested values are read first; if any read fails, nothing is written,
-	// and every requested write must succeed for the call to report success.
-	struct Writes {
-		uintptr_t controller = 0;
-		double    deltaYaw = 0.0;
-		double    deltaPitch = 0.0;
-		bool      wantYaw = false;
-		bool      wantPitch = false;
-		bool      ok = false;
-	};
+	// Direct writes intentionally mirror bodycam-master: they run synchronously
+	// on NOVA's worker thread and do not depend on the optional APC path. Read
+	// every requested axis before writing so a failed read produces no writes.
+	const bool wantYaw = std::fabs(deltaYaw) > 1e-4;
+	const bool wantPitch = std::fabs(deltaPitch) > 1e-4;
+	if (!wantYaw && !wantPitch) return false;
 
-	auto writes = std::make_shared<Writes>();
-	writes->controller = playerController;
-	writes->deltaYaw = deltaYaw;
-	writes->deltaPitch = deltaPitch;
-	writes->wantYaw = std::fabs(deltaYaw) > 1e-4;
-	writes->wantPitch = std::fabs(deltaPitch) > 1e-4;
+	double currentYaw = 0.0;
+	double currentPitch = 0.0;
+	if (wantYaw && !ReadDouble(memory_, playerController + Offsets::Aim::RotationInputYaw,
+	                           currentYaw)) {
+		return false;
+	}
+	if (wantPitch && !ReadDouble(memory_, playerController + Offsets::Aim::RotationInputPitch,
+	                             currentPitch)) {
+		return false;
+	}
 
-	if (!writes->wantYaw && !writes->wantPitch) return false;
-
-	const GameThreadExecutor::Result result = gameThread_.Execute(
-		[this, writes] {
-			double currentYaw = 0.0;
-			double currentPitch = 0.0;
-			const bool readYaw = !writes->wantYaw ||
-				ReadDouble(memory_, writes->controller + Offsets::Aim::RotationInputYaw,
-				           currentYaw);
-			const bool readPitch = !writes->wantPitch ||
-				ReadDouble(memory_, writes->controller + Offsets::Aim::RotationInputPitch,
-				           currentPitch);
-			if (!readYaw || !readPitch) return;
-
-			bool ok = true;
-			if (writes->wantYaw) {
-				ok = GuardedWriteDouble(writes->controller + Offsets::Aim::RotationInputYaw,
-				                        currentYaw + writes->deltaYaw) && ok;
-			}
-			if (writes->wantPitch) {
-				ok = GuardedWriteDouble(writes->controller + Offsets::Aim::RotationInputPitch,
-				                        currentPitch + writes->deltaPitch) && ok;
-			}
-			writes->ok = ok;
-		},
-		kEngineCallTimeoutMs);
-
-	if (result != GameThreadExecutor::Result::Completed) return false;
-	return writes->ok;
+	bool ok = true;
+	if (wantYaw) {
+		ok = GuardedWriteDouble(playerController + Offsets::Aim::RotationInputYaw,
+		                        currentYaw + deltaYaw) && ok;
+	}
+	if (wantPitch) {
+		ok = GuardedWriteDouble(playerController + Offsets::Aim::RotationInputPitch,
+		                        currentPitch + deltaPitch) && ok;
+	}
+	return ok;
 }
 
 bool EngineCalls::SetControlRotation(uintptr_t playerController, const nova::FRotator& rotation) {
 	if (!nova::IsPlausiblePointer(playerController)) return false;
-	if (!gameThread_.verified()) return false;
+	if (!rotation.finite()) return false;
 
-	struct Writes {
-		uintptr_t base = 0;
-		double    pitch = 0.0;
-		double    yaw = 0.0;
-		bool      ok = false;
-	};
-
-	auto writes = std::make_shared<Writes>();
-	writes->base = playerController + Offsets::Aim::ControlRotation;
-	writes->pitch = rotation.pitch;
-	writes->yaw = rotation.yaw;
-
-	const GameThreadExecutor::Result result = gameThread_.Execute(
-		[writes] {
-			const bool pitchOk = GuardedWriteDouble(writes->base + 0x00, writes->pitch);
-			const bool yawOk = GuardedWriteDouble(writes->base + 0x08, writes->yaw);
-			writes->ok = pitchOk && yawOk;
-		},
-		kEngineCallTimeoutMs);
-
-	if (result != GameThreadExecutor::Result::Completed) return false;
-	return writes->ok;
+	// Like the reference implementation, the legacy direct method is a guarded
+	// worker-thread write. It remains isolated to this quarantine module.
+	const uintptr_t base = playerController + Offsets::Aim::ControlRotation;
+	const bool pitchOk = GuardedWriteDouble(base + 0x00, rotation.pitch);
+	const bool yawOk = GuardedWriteDouble(base + 0x08, rotation.yaw);
+	return pitchOk && yawOk;
 }
 
 } // namespace nova_host

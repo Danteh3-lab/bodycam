@@ -292,10 +292,12 @@ void NovaUi::DrawPlayers(nova::OverlayConfig& config, const VisCheck::Status& vi
 		if (players.dimOccluded) players.visibleOnly = false;
 		*changed = true;
 	}
-	if ((players.visibleOnly || players.dimOccluded) &&
-	    (!vischeck.ready || !vischeck.enginePathAvailable)) {
+	if ((players.visibleOnly || players.dimOccluded) && !vischeck.engineCallsEnabled) {
 		ImGui::TextColored(theme::ToVec4(theme::kWarn),
-		                   "Vischeck unavailable - players are not filtered.");
+		                   "Vischeck disabled - enable unsafe engine calls in Aim.");
+	} else if ((players.visibleOnly || players.dimOccluded) && !vischeck.ready) {
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Vischeck unresolved - players are not filtered.");
 	}
 	if (UiSlider("Max distance", &players.maxDistance, 10.0f, 1000.0f, "%.0f m")) *changed = true;
 }
@@ -332,11 +334,11 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 	ImGui::BeginDisabled(!anyAim);
 	if (UiCombo("Method", &settings.method,
 	            "Game function (unsafe, opt-in)\0Rotation input (direct)\0Control rotation (legacy)\0",
-	            "Rotation input: writes RotationInput directly on the game thread. The\n"
-	            "default and recommended method. Works whenever the game-thread path\n"
-	            "verifies.\n\n"
-	            "Control rotation: the old method. The game recomputes that value every\n"
-	            "tick, so this one fights the engine.\n\n"
+	            "Rotation input: writes RotationInput directly from NOVA's worker. The\n"
+	            "default and recommended reference-compatible method. It does not require\n"
+	            "the optional engine-call path.\n\n"
+	            "Control rotation: the old direct-write method. The game recomputes that\n"
+	            "value every tick, so this one fights the engine.\n\n"
 	            "Game function: calls the engine's own AddYawInput/AddPitchInput. Requires\n"
 	            "the unsafe engine-call opt-in and the verified game-thread path; there is\n"
 	            "no automatic fallback.")) {
@@ -391,15 +393,15 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 
 	UiGroup("Engine function");
 	if (UiToggle("Allow engine calls (unsafe)", &config.unsafeEngineCalls,
-	             "Off by default. When enabled, NOVA calls the game's own input functions\n"
-	             "and ProcessEvent for the vischeck on the game thread. Engine calls can\n"
-	             "re-enter engine code at an unsafe phase; enable only if you accept that\n"
-	             "risk.")) {
+	             "Off by default. AddYawInput/AddPitchInput use the verified game-thread\n"
+	             "path. To match bodycam-master, ProcessEvent vischeck runs directly from\n"
+	             "NOVA's worker thread. That call can re-enter the engine at an unsafe\n"
+	             "phase; enable only if you accept the crash risk.")) {
 		*changed = true;
 	}
 	if (config.unsafeEngineCalls) {
 		ImGui::TextColored(theme::ToVec4(theme::kWarn),
-		                   "Unsafe engine calls ON - engine re-entry risk accepted.");
+		                   "Unsafe calls ON - worker-thread vischeck may crash the game.");
 	} else {
 		ImGui::TextDisabled("Engine calls disabled. Direct rotation methods still work.");
 	}
@@ -421,10 +423,12 @@ void NovaUi::DrawAim(nova::OverlayConfig& config, const AimTelemetry& aim,
 		                   "Engine method unavailable (%s) - use the direct rotation method.",
 		                   reason);
 	}
-	if (anyAim && settings.visibleOnly &&
-	    (!vischeck.ready || !vischeck.enginePathAvailable)) {
+	if (anyAim && settings.visibleOnly && !vischeck.engineCallsEnabled) {
 		ImGui::TextColored(theme::ToVec4(theme::kWarn),
-		                   "Vischeck unavailable - the visible-only filter is inactive.");
+		                   "Vischeck disabled - visible-only aim is inactive.");
+	} else if (anyAim && settings.visibleOnly && !vischeck.ready) {
+		ImGui::TextColored(theme::ToVec4(theme::kWarn),
+		                   "Vischeck unresolved - visible-only aim is inactive.");
 	}
 	ImGui::Dummy(ImVec2(0.0f, 4.0f));
 	ImGui::TextWrapped("Status: %s", aim.status.c_str());
@@ -563,14 +567,15 @@ void NovaUi::DrawDiagnostics(const nova::RuntimeDiagnostics& diagnostics,
 
 	UiGroup("Vischeck");
 	ImGui::TextWrapped("%s", vischeck.message.c_str());
-	ImGui::Text("queries %d   visible %d   hidden %d   cached %d",
-	            vischeck.calls, vischeck.visible, vischeck.hidden,
+	ImGui::Text("queries %d   visible %d   hidden %d   faults %d   cached %d",
+	            vischeck.calls, vischeck.visible, vischeck.hidden, vischeck.faults,
 	            static_cast<int>(vischeck.cacheSize));
 	ImGui::Text("attempts %d / %d", vischeck.tries, vischeck.maxTries);
 	ImGui::TextWrapped("A line-of-sight trace is run from your camera to each tracked player "
-	                   "through the engine's own LineOfSightTo function. Results are cached for "
-	                   "a few frames. Unresolved or faulting checks count as visible, so the ESP "
-	                   "never silently hides players.");
+	                   "through the engine's own LineOfSightTo function. With the unsafe opt-in, "
+	                   "ProcessEvent runs directly from NOVA's worker to match bodycam-master. "
+	                   "Results are cached briefly; unresolved or faulting checks count as "
+	                   "visible, so the ESP never silently hides players.");
 
 	UiGroup("Aim");
 	ImGui::TextWrapped("%s", aim.status.c_str());

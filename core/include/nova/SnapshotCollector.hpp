@@ -28,8 +28,13 @@ struct CaptureSettings {
 	bool   hideDead = true;
 	bool   visibility = false; // run the attached VisibilityProbe per pawn
 	double maxDistanceMeters = 300.0;
+	// When aim is active, retain candidates even when ESP would hide them. The
+	// overlay applies the ESP filters later; aim selection gets the full roster.
+	bool   retainAimCandidates = false;
 
-	[[nodiscard]] bool collectPose() const { return boxFromBones || skeleton || headDot; }
+	[[nodiscard]] bool collectPose() const {
+		return retainAimCandidates || boxFromBones || skeleton || headDot;
+	}
 };
 
 struct CollectionDiagnostics {

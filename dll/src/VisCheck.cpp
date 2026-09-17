@@ -6,8 +6,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <memory>
-#include <vector>
 
 namespace nova_host {
 namespace {
@@ -32,10 +30,26 @@ bool ReadUInt64(const nova::ReadOnlyMemory& memory, uintptr_t address, uint64_t&
 
 } // namespace
 
-VisCheck::VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names,
-                   GameThreadExecutor& gameThread)
-	: memory_(memory), names_(names), gameThread_(gameThread) {
+VisCheck::VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names)
+	: memory_(memory), names_(names) {
 	status_.maxTries = Offsets::VisCheck::MaxTries;
+}
+
+void VisCheck::SetEngineCallsEnabled(bool enabled) {
+	if (engineCallsEnabled_ == enabled) return;
+
+	engineCallsEnabled_ = enabled;
+	status_.engineCallsEnabled = enabled;
+	cache_.clear();
+	status_.cacheSize = 0;
+
+	if (!enabled) {
+		status_.message = "engine calls disabled (enable in the Aim section)";
+	} else if (status_.ready) {
+		SetReadyMessage();
+	} else {
+		status_.message = "unsafe direct vischeck enabled; resolving";
+	}
 }
 
 void VisCheck::ResetResolution() {
@@ -59,7 +73,7 @@ void VisCheck::OnWorldReset() {
 }
 
 void VisCheck::Tick(uintptr_t playerController) {
-	status_.enginePathAvailable = engineCallsEnabled_ && gameThread_.verified();
+	status_.engineCallsEnabled = engineCallsEnabled_;
 	if (!engineCallsEnabled_) {
 		status_.message = "engine calls disabled (enable in the Aim section)";
 		return;
@@ -133,13 +147,18 @@ void VisCheck::Resolve(uintptr_t playerController) {
 	status_.ready = true;
 	status_.method = method;
 
-	char buffer[224] = {};
-	std::snprintf(buffer, sizeof(buffer), "%s via ProcessEvent (fn 0x%llX, params 0x%X%s%s)",
-	              method == Method::LineOfSight ? "LineOfSightTo"
-	                                            : "WasRecentlyRendered (render state)",
-	              static_cast<unsigned long long>(function), layout.size,
-	              LooksLikeProcessEvent(processEvent) ? ", verified" : "",
-	              gameThread_.verified() ? "" : " | game-thread path unavailable");
+	SetReadyMessage();
+}
+
+void VisCheck::SetReadyMessage() {
+	char buffer[256] = {};
+	std::snprintf(buffer, sizeof(buffer),
+	              "%s via ProcessEvent on NOVA worker (unsafe direct call; fn 0x%llX, "
+	              "params 0x%X%s)",
+	              method_ == Method::LineOfSight ? "LineOfSightTo"
+	                                             : "WasRecentlyRendered (render state)",
+	              static_cast<unsigned long long>(function_), params_.size,
+	              LooksLikeProcessEvent(processEvent_) ? ", verified" : "");
 	status_.message = buffer;
 }
 
@@ -308,57 +327,41 @@ bool VisCheck::Query(uintptr_t pawn, const nova::FVector& cameraLocation) const 
 		return true;
 	}
 	if (processEvent_ == 0 || function_ == 0) return true;
-	if (!engineCallsEnabled_ || !gameThread_.verified()) return true;
+	if (!engineCallsEnabled_) return true;
 
-	// The parameter block lives in the task object, so a task that runs after
-	// a timeout still owns valid memory; the result is simply ignored.
-	struct Probe {
-		std::vector<uint8_t> buffer;
-		ProcessEventFn       processEvent = nullptr;
-		void*                self = nullptr;
-		void*                target = nullptr;
-		std::atomic<int>     outcome{ 0 }; // 0 pending, 1 returned, -1 faulted
-		int                  ret = -1;
-		uint8_t              mask = 0xFF;
-	};
-
-	auto probe = std::make_shared<Probe>();
-	probe->buffer.assign(Offsets::VisCheck::MaxParams, 0);
-	probe->processEvent = reinterpret_cast<ProcessEventFn>(processEvent_);
-	probe->self = reinterpret_cast<void*>(playerController_);
-	probe->target = reinterpret_cast<void*>(function_);
+	// Reference-compatible execution: ProcessEvent is invoked synchronously
+	// from NOVA's worker thread. This is intentionally unsafe and therefore
+	// remains behind the explicit owner opt-in. The reflected layout checks
+	// above bound every write, and SEH keeps a fault fail-open.
+	alignas(8) uint8_t buffer[Offsets::VisCheck::MaxParams] = {};
+	void* self = reinterpret_cast<void*>(playerController_);
 
 	const ParamLayout& layout = params_;
 	if (method_ == Method::LineOfSight) {
 		if (layout.other < 0 || layout.viewPoint < 0 || layout.altChecks < 0) return true;
 
 		const uint64_t other = static_cast<uint64_t>(pawn);
-		std::memcpy(probe->buffer.data() + layout.other, &other, sizeof(other));
+		std::memcpy(buffer + layout.other, &other, sizeof(other));
 
 		const double viewPoint[3] = { cameraLocation.x, cameraLocation.y, cameraLocation.z };
-		std::memcpy(probe->buffer.data() + layout.viewPoint, viewPoint, sizeof(viewPoint));
-		probe->buffer[static_cast<std::size_t>(layout.altChecks)] = 0;
+		std::memcpy(buffer + layout.viewPoint, viewPoint, sizeof(viewPoint));
+		buffer[static_cast<std::size_t>(layout.altChecks)] = 0;
 	} else if (method_ == Method::RecentlyRendered) {
 		if (layout.tolerance < 0) return true;
 
 		const float tolerance = Offsets::VisCheck::RenderTolerance;
-		std::memcpy(probe->buffer.data() + layout.tolerance, &tolerance, sizeof(tolerance));
-		probe->self = reinterpret_cast<void*>(pawn);
+		std::memcpy(buffer + layout.tolerance, &tolerance, sizeof(tolerance));
+		self = reinterpret_cast<void*>(pawn);
 	} else {
 		return true;
 	}
-	probe->ret = layout.ret;
-	probe->mask = layout.retMask;
 
-	const GameThreadExecutor::Result result = gameThread_.Execute(
-		[probe] {
-			probe->outcome = SafeProcessEvent(probe->processEvent, probe->self, probe->target,
-			                                  probe->buffer.data()) ? 1 : -1;
-		},
-		kEngineCallTimeoutMs);
-	if (result != GameThreadExecutor::Result::Completed) return true;
-	if (probe->outcome.load() < 0) return true;
-	return (probe->buffer[static_cast<std::size_t>(probe->ret)] & probe->mask) != 0;
+	if (!SafeProcessEvent(reinterpret_cast<ProcessEventFn>(processEvent_), self,
+	                      reinterpret_cast<void*>(function_), buffer)) {
+		++status_.faults;
+		return true;
+	}
+	return (buffer[static_cast<std::size_t>(layout.ret)] & layout.retMask) != 0;
 }
 
 bool VisCheck::IsVisible(uintptr_t pawn, const nova::FVector& cameraLocation) const {

@@ -7,6 +7,7 @@
 #include "nova/SnapshotCollector.hpp"
 #include "nova/WorldResolver.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -90,6 +91,44 @@ NOVA_TEST(CaptureKeepsDronesWhenEnabled) {
 	CHECK_EQ(snapshot->players[0].kind, nova::PlayerKind::Drone);
 	CHECK(!snapshot->players[0].hasHealth);
 	CHECK(snapshot->players[0].hasCapsule);
+}
+
+NOVA_TEST(CaptureRetainsAimCandidatesBeyondEspFilters) {
+	CollectorContext context;
+	context.fixture.AddPlayer(1, 80.0f, 100.0f, "BP_Character_C",
+		                          nova::FVector{ 500.0, 0.0, 100.0 }, true, "Enemy");
+	context.fixture.AddPlayer(0, 100.0f, 100.0f, "BP_Character_C",
+		                          nova::FVector{ 500.0, 500.0, 100.0 }, true, "Team");
+	context.fixture.AddPlayer(1, 0.0f, 100.0f, "BP_Character_C",
+		                          nova::FVector{ 400.0, 0.0, 100.0 }, true, "Dead");
+	context.fixture.AddDrone("Drone", nova::FVector{ 300.0, 0.0, 100.0 });
+	context.fixture.AddPlayer(1, 100.0f, 100.0f, "BP_Character_C",
+	                          nova::FVector{ 0.0, 40000.0, 100.0 }, true, "Far");
+
+	CHECK(context.resolver.Resolve());
+	CHECK(context.names.Attach(context.fixture.names.address()));
+
+	nova::CaptureSettings settings = DefaultSettings();
+	settings.retainAimCandidates = true;
+	settings.boxFromBones = false;
+	settings.skeleton = false;
+	settings.headDot = false;
+
+	const nova::GameSnapshotPtr snapshot =
+		context.collector.Capture(context.resolver.context(), nova::ResolveStage::Ok,
+		                          settings, 1, 0);
+
+	CHECK(snapshot->valid);
+	CHECK_EQ(snapshot->players.size(), static_cast<size_t>(5));
+	CHECK_EQ(snapshot->counters.teamFiltered, 0);
+	CHECK_EQ(snapshot->counters.dead, 0);
+	CHECK_EQ(snapshot->counters.droneFiltered, 0);
+	CHECK_EQ(snapshot->counters.tooFar, 0);
+	CHECK_EQ(snapshot->counters.drawn, 5);
+	CHECK(std::any_of(snapshot->players.begin(), snapshot->players.end(),
+	                  [](const nova::PlayerSnapshot& player) {
+		                  return player.hasPose && player.headBone >= 0;
+	                  }));
 }
 
 NOVA_TEST(CaptureHealthAndDistance) {

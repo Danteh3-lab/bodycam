@@ -80,12 +80,6 @@ void AimController::Tick(const nova::WorldContext& world, const nova::GameSnapsh
 	bool applied = false;
 	const char* how = "?";
 
-	// Every method (including the direct writes) executes on the game thread.
-	if (!calls_.gameThreadVerified()) {
-		telemetry_.status = "Aimbot: game-thread path unavailable";
-		return;
-	}
-
 	switch (config.method) {
 	case 1:
 		applied = calls_.AddLookInputDirect(world.playerController, step.yaw, step.pitch, stepCap);

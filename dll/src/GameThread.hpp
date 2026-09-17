@@ -1,11 +1,12 @@
 // ============================================================================
 // GameThreadExecutor — QUARANTINED engine interaction plumbing.
 //
-// Unreal engine functions and the APlayerController rotation fields assume
-// game-thread affinity; touching them from NOVA's worker thread would race the
-// engine's own state even with SEH around the access. NOVA never hooks, so the
-// only legitimate cross-thread entry point is a user-mode APC delivered to the
-// window-owning thread (the process's game thread).
+// Unreal engine functions and ProcessEvent require game-thread affinity. Those
+// calls are kept behind the optional user-mode APC delivered to the
+// window-owning thread (the process's game thread). Direct RotationInput and
+// ControlRotation writes deliberately mirror bodycam-master's worker-thread
+// implementation; they remain guarded and quarantined in EngineCalls, but do
+// not depend on this optional APC path.
 //
 // Initialize() opens that thread and pins this module: once an APC can be
 // queued, the module must never unmap while the game thread might still run it.

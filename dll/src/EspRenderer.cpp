@@ -152,6 +152,15 @@ void EspRenderer::Draw(const nova::GameSnapshot& snapshot, const nova::OverlayCo
 	ProjectedPose poseScratch;
 
 	for (const nova::PlayerSnapshot& player : snapshot.players) {
+		// Snapshot capture may retain extra candidates for aim. These gates belong
+		// to ESP presentation, not target selection.
+		if (player.sameTeam ? !features.showTeam : !features.showEnemy) continue;
+		if (player.isDrone() && !features.showDrones) continue;
+		if (features.hideDead && player.hasHealth && player.dead) continue;
+		if (features.maxDistance > 0.0f &&
+		    player.distanceMeters > static_cast<double>(features.maxDistance)) {
+			continue;
+		}
 		const bool occluded = !player.visible;
 		if (features.visibleOnly && occluded) continue;
 

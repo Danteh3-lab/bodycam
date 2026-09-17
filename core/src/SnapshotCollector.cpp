@@ -337,11 +337,11 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 		if (player.hasTeam) player.teamId = teamId;
 		player.sameTeam = world.localTeam >= 0 && player.hasTeam && player.teamId == world.localTeam;
 
-		if (player.sameTeam && !settings.showTeam) {
+		if (!settings.retainAimCandidates && player.sameTeam && !settings.showTeam) {
 			++diagnostics_.entities.teamFiltered;
 			continue;
 		}
-		if (!player.sameTeam && !settings.showEnemy) {
+		if (!settings.retainAimCandidates && !player.sameTeam && !settings.showEnemy) {
 			++diagnostics_.entities.teamFiltered;
 			continue;
 		}
@@ -361,14 +361,14 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 			++diagnostics_.entities.noHealth;
 		}
 
-		if (settings.hideDead && player.hasHealth && player.dead) {
+		if (!settings.retainAimCandidates && settings.hideDead && player.hasHealth && player.dead) {
 			++diagnostics_.entities.dead;
 			continue;
 		}
 
 		if (isDrone) {
 			++diagnostics_.entities.drones;
-			if (!settings.showDrones) {
+			if (!settings.retainAimCandidates && !settings.showDrones) {
 				++diagnostics_.entities.droneFiltered;
 				continue;
 			}
@@ -404,7 +404,7 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 		if (!(distanceCm > 0.0) || distanceCm > kMaxCoordinateCm) distanceCm = 0.0;
 		player.distanceMeters = distanceCm / 100.0;
 
-		if (maxDistanceCm > 0.0 && distanceCm > maxDistanceCm) {
+		if (!settings.retainAimCandidates && maxDistanceCm > 0.0 && distanceCm > maxDistanceCm) {
 			++diagnostics_.entities.tooFar;
 			continue;
 		}

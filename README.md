@@ -41,7 +41,7 @@ NOVA.dll  (bootstrap thread; DllMain only disables thread notifications)
     +-- SnapshotCollector .... 60 Hz worker -> immutable GameSnapshot (pointer-free)
     +-- GameThread .......... verifies a game-thread APC path (no hooks); fail-closed
     +-- EngineCalls .......... resolved AddYawInput/AddPitchInput + guarded rotation writes
-    +-- VisCheck ............. LineOfSightTo via ProcessEvent, 50 ms cache, fail-open
+    +-- VisCheck ............. opt-in direct-worker ProcessEvent, 50 ms cache, fail-open
     +-- AimController ........ target selection + per-tick aim step application
     +-- OverlayWindow ........ D3D11 top-level transparent window + ImGui lifecycle
     +-- EspRenderer .......... boxes, names, health, distance, skeletons, head dots, snaplines
@@ -195,26 +195,33 @@ Build gating is enforced on the PE identity, not just a version string:
   distance to the crosshair inside the configured FOV circle, with team, dead,
   drone and occlusion filters; the head bone comes from the model's reference
   pose. Visible only and Dim occluded are mutually exclusive in the panel.
-- Engine interaction runs on a verified game-thread path: NOVA proves a
-  user-mode APC round trip to the window-owning thread at startup, queues each
-  write/call there with a bounded wait, and cancels tasks that miss their
-  deadline. No hooks or thread suspension are involved. Same-thread execution
-  does not prove a safe engine phase, so engine function calls (`AddYawInput`/
-  `AddPitchInput` and the `ProcessEvent` vischeck) are **off by default** and
-  only run when the owner enables **Allow engine calls (unsafe)** in the Aim
-  section. The direct `RotationInput`/`ControlRotation` writes remain available
-  whenever the game-thread path verifies.
-- The direct methods write `RotationInput` or `ControlRotation` on the game
-  thread; the engine method additionally calls the game's own functions
+- The `AddYawInput`/`AddPitchInput` engine method runs only on a verified
+  game-thread path: NOVA proves a user-mode APC round trip to the window-owning
+  thread at startup, queues those calls there with a bounded wait, and cancels
+  tasks that miss their deadline. No hooks or thread suspension are involved.
+- To match bodycam-master, the `ProcessEvent` vischeck runs synchronously from
+  NOVA's worker thread. It does not depend on the APC path, but it can re-enter
+  engine code at an unsafe phase. It is **off by default** and runs only when
+  the owner enables **Allow engine calls (unsafe)** in the Aim section.
+- The default direct methods mirror bodycam-master: guarded read/modify/write
+  operations update `RotationInput` or `ControlRotation` synchronously from
+  NOVA's worker thread and do not depend on the optional APC path. The engine
+  method additionally calls the game's own functions
   (resolved by RVA, verified by signature, with a bounded executable-section
   scan fallback and a runtime-measured input scale). Every method uses the
   same per-tick step hard-capped by **Max step**; roll is never touched.
-  The legacy project called these engine functions directly from its own
-  thread; that unsafe pattern is what this design replaces.
+  The legacy project called those engine functions directly from its own
+  thread; this rewrite keeps them behind the optional game-thread path while
+  retaining its direct rotation-write behavior for the two reference-compatible
+  methods.
+- While aim is active, capture retains candidates even when ESP hides their
+  team, death state, drone class, or distance. Those settings are applied only
+  by ESP rendering; aim still applies its own teammate and visibility filters.
 - The visibility check calls the engine's own `LineOfSightTo` (fallback:
-  `WasRecentlyRendered`) through `ProcessEvent`, cached for 50 ms. It fails
-  open: unresolved or faulting checks report visible, so nothing silently
-  disappears from the ESP.
+  `WasRecentlyRendered`) through the opt-in direct-worker `ProcessEvent` path,
+  cached for 50 ms. It fails open: unresolved or faulting checks report visible,
+  so nothing silently disappears from the ESP. Diagnostics expose query,
+  visible, hidden, fault and cache counts.
 
 ---
 

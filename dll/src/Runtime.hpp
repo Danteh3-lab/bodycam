@@ -30,6 +30,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
 namespace nova_host {
@@ -113,6 +114,7 @@ private:
 	bool stateLogged_ = false;
 	bool worldLogged_ = false;
 	bool namesLogged_ = false;
+	std::string lastVischeckMessage_;
 };
 
 } // namespace nova_host

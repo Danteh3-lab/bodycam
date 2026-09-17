@@ -7,14 +7,16 @@
 // block laid out from the function's reflected properties. If LineOfSightTo is
 // not reflected, WasRecentlyRendered is used as a render-state fallback.
 //
+// To match bodycam-master, the opted-in ProcessEvent call runs synchronously
+// from NOVA's worker thread. This can re-enter the engine at an unsafe phase;
+// the UI keeps it off by default and labels the risk explicitly.
+//
 // Everything fails open (reports "visible") when the check cannot be resolved
 // or faults, so nothing silently disappears. Implements the core
 // nova::VisibilityProbe interface; this is one of the only NOVA.dll modules
 // allowed to call engine functions.
 // ============================================================================
 #pragma once
-#include "GameThread.hpp"
-
 #include "nova/NamePool.hpp"
 #include "nova/ReadOnlyMemory.hpp"
 #include "nova/UnrealTypes.hpp"
@@ -37,19 +39,19 @@ public:
 
 	struct Status {
 		bool        ready = false;
-		bool        enginePathAvailable = false;
+		bool        engineCallsEnabled = false;
 		Method      method = Method::None;
 		int         tries = 0;
 		int         maxTries = 0;
 		int         calls = 0;
 		int         visible = 0;
 		int         hidden = 0;
+		int         faults = 0;
 		std::size_t cacheSize = 0;
 		std::string message = "not initialized";
 	};
 
-	VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names,
-	         GameThreadExecutor& gameThread);
+	VisCheck(const nova::ReadOnlyMemory& memory, const nova::NamePool& names);
 
 	// Attempts resolution against the local PlayerController. Call once per
 	// worker tick; bounded retries, then it stays quiet.
@@ -61,12 +63,10 @@ public:
 
 	// Owner opt-in for engine calls (ProcessEvent). While disabled the check
 	// reports unavailable and never resolves or queries.
-	void SetEngineCallsEnabled(bool enabled) { engineCallsEnabled_ = enabled; }
+	void SetEngineCallsEnabled(bool enabled);
 	[[nodiscard]] bool engineCallsEnabled() const { return engineCallsEnabled_; }
 
-	[[nodiscard]] bool active() const override {
-		return engineCallsEnabled_ && status_.ready && gameThread_.verified();
-	}
+	[[nodiscard]] bool active() const override { return engineCallsEnabled_ && status_.ready; }
 	[[nodiscard]] bool IsVisible(uintptr_t pawn,
 	                             const nova::FVector& cameraLocation) const override;
 
@@ -91,6 +91,7 @@ private:
 
 	void Resolve(uintptr_t playerController);
 	void ResetResolution();
+	void SetReadyMessage();
 	[[nodiscard]] uintptr_t ResolveProcessEvent(uintptr_t base, uintptr_t playerController) const;
 	[[nodiscard]] uintptr_t FindFunctionInClassChain(uintptr_t cls, const char* want) const;
 	[[nodiscard]] bool ReadParamLayout(uintptr_t function, ParamLayout& layout, Method method) const;
@@ -100,7 +101,6 @@ private:
 
 	const nova::ReadOnlyMemory& memory_;
 	const nova::NamePool&       names_;
-	GameThreadExecutor&         gameThread_;
 	uintptr_t  playerController_ = 0;
 	uintptr_t  processEvent_ = 0;
 	uintptr_t  function_ = 0;
