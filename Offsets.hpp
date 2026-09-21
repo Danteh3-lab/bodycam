@@ -104,9 +104,12 @@ namespace Offsets {
 	// GNames and GWorld are tried first and only trusted after validation.
 	// ------------------------------------------------------------------------
 	namespace Globals {
-		// Both RVAs were re-measured with Dumper-7 on Steam build 25368976
-		// (UE 5.5.4); the resolver still validates before trusting either.
-		constexpr uintptr_t GNames           = 0x099AB188; // [USED] FNamePool
+		// GWorld was re-measured with Dumper-7 on Steam build 25368976
+		// (UE 5.5.4). Dumper-7's decorative GNames value (0x099AB188) did
+		// not validate as an FNamePool in the live image; MYTHOS's bounded
+		// signature scan resolved and validated the pool uniquely at 0x099E3040.
+		// The resolver still validates both hints before trusting either.
+		constexpr uintptr_t GNames           = 0x099E3040; // [USED] validated FNamePool
 		constexpr uintptr_t GWorld           = 0x09C42738; // [USED] UWorld* slot
 		constexpr uintptr_t GObjects         = 0x09AC67F0; // measured, not consumed
 		constexpr int32_t   ElementsPerChunk = 0x10000;    // [DUMP] GObjects chunk size
@@ -238,9 +241,11 @@ namespace Offsets {
 	// APlayerState
 	constexpr uintptr_t PSPawn   = 0x320;
 	constexpr uintptr_t PSName   = 0x340; // FString (TArray<wchar>): data+0, num+8
-	constexpr uintptr_t PSTeamId = 0x388; // int
-	constexpr uintptr_t PSKills  = 0x38C; // int
-	constexpr uintptr_t PSDeaths = 0x390; // int
+	// ABodycamPlayerState, re-dumped for build 25368976. The previous 0x388
+	// points at OnPlatformIdChanged and must never be interpreted as a team ID.
+	constexpr uintptr_t PSTeamId = 0x398; // int32 TeamID
+	constexpr uintptr_t PSKills  = 0x39C; // int32 Kill
+	constexpr uintptr_t PSDeaths = 0x3A0; // int32 Death
 
 	// APawn / ACharacter
 	constexpr uintptr_t RootComponent         = 0x1B8;

@@ -196,10 +196,11 @@ uintptr_t WorldFixture::BuildPawn(const char* className, const FVector& rootPosi
 	memory.WriteFloat(attributes + Offsets::HealthCurrent, health);
 	memory.WriteFloat(attributes + Offsets::MaxHealthCurrent, maxHealth);
 
-	// Root component with a component-to-world translation. C2WTranslation is
-	// the inline FVector at ComponentToWorld + 0x20.
+	// Root components expose their world position through reflected
+	// RelativeLocation; keep the internal C2W cache populated for compatibility.
 	const uintptr_t root = memory.Allocate(0x300);
 	memory.WritePointer(pawn + Offsets::RootComponent, root);
+	memory.WriteValue(root + Offsets::RelativeLocation, rootPosition);
 	WriteTransform(memory, root + Offsets::ComponentToWorld,
 	               FVector{ rootPosition.x, rootPosition.y, rootPosition.z });
 

@@ -18,7 +18,10 @@ bool MeshBelongsToPawn(const ReadOnlyMemory& memory, uintptr_t pawn, const FTran
 	if (!memory.readPointer(pawn + Offsets::RootComponent, root)) return true;
 
 	FVector rootPosition;
-	if (!memory.readRaw<FVector>(root + Offsets::C2WTranslation, rootPosition)) return true;
+	if (!memory.readRaw<FVector>(root + Offsets::RelativeLocation, rootPosition) ||
+	    !rootPosition.finite()) {
+		if (!memory.readRaw<FVector>(root + Offsets::C2WTranslation, rootPosition)) return true;
+	}
 	if (!rootPosition.finite()) return true;
 
 	const double dx = componentToWorld.translation.x - rootPosition.x;

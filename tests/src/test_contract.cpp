@@ -302,13 +302,16 @@ MYTHOS_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	CHECK(ContainsToken(offsets, "0x0A720000u"));
 	CHECK(ContainsToken(offsets, "0x8E1C799Au"));
 	CHECK(ContainsToken(offsets, "0x0A2E9763u"));
-	CHECK(ContainsToken(offsets, "0x099AB188"));
+	CHECK(ContainsToken(offsets, "0x099E3040"));
 	CHECK(ContainsToken(offsets, "0x09C42738"));
 	CHECK(DeclaresHex(offsets, "AddPitchInput", "0x3CB9DF0"));
 	CHECK(DeclaresHex(offsets, "AddYawInput", "0x3CBA000"));
 	CHECK(DeclaresHex(offsets, "ProcessEvent", "0x034E4A60"));
 	CHECK(DeclaresHex(offsets, "BoolByteOffset", "0x71"));
 	CHECK(DeclaresHex(offsets, "BoolFieldMask", "0x73"));
+	CHECK(DeclaresHex(offsets, "PSTeamId", "0x398"));
+	CHECK(DeclaresHex(offsets, "PSKills", "0x39C"));
+	CHECK(DeclaresHex(offsets, "PSDeaths", "0x3A0"));
 	CHECK(ContainsToken(vischeck, "ProcessEventIdx"));
 	CHECK(ContainsToken(vischeck, "rvaCandidate"));
 	CHECK(ContainsToken(vischeck, "slotCandidate"));

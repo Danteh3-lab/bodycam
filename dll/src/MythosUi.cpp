@@ -540,11 +540,13 @@ void MythosUi::DrawDiagnostics(const mythos::RuntimeDiagnostics& diagnostics,
 	ImGui::Text("Read failures: %u", diagnostics.readFailures);
 
 	UiGroup("Entities");
-	ImGui::Text("roster %d   drawn %d", collection.entities.roster, collection.entities.drawn);
+	ImGui::Text("roster %d   captured %d   rendered %d", collection.entities.roster,
+	            collection.entities.captured, collection.entities.drawn);
 	ImGui::Text("self %d   team %d   dead %d   no-health %d",
 	            collection.entities.self, collection.entities.teamFiltered,
 	            collection.entities.dead, collection.entities.noHealth);
-	ImGui::Text("no-position %d   too-far %d", collection.entities.noPosition,
+	ImGui::Text("no-position %d   no-projection %d   too-far %d",
+	            collection.entities.noPosition, collection.entities.noProjection,
 	            collection.entities.tooFar);
 	ImGui::Text("drones %d   drone-filtered %d", collection.entities.drones,
 	            collection.entities.droneFiltered);

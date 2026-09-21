@@ -20,7 +20,8 @@ namespace mythos_host {
 class EspRenderer {
 public:
 	void Draw(const mythos::GameSnapshot& snapshot, const mythos::OverlayConfig& config,
-	          float screenWidth, float screenHeight, mythos::BoneCounters& boneCounters);
+	          float screenWidth, float screenHeight, mythos::BoneCounters& boneCounters,
+	          mythos::EntityCounters& entityCounters);
 
 	// FOV circles and the target line. Uses only config + worker telemetry.
 	void DrawAimOverlay(const mythos::OverlayConfig& config, const AimTelemetry& aim,

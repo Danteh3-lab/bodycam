@@ -185,11 +185,12 @@ The loader's exit codes:
 
 `Offsets.hpp` is the single offset source and carries the profile metadata
 (Steam app `2406770`, build `25368976`, UE 5.5.4). Both globals were re-measured
-against the installed build with Dumper-7: `GNames` at RVA `0x099AB188` and the
-stable `GWorld` anchor slot at RVA `0x09C42738`. They are resolved from their
-RVAs first and only trusted after full validation; bounded signature and
-data-section scans are the fallbacks, with retry backoff and a bounded rescan
-policy.
+against the installed build: the runtime's validated signature scan resolves
+the FName pool at RVA `0x099E3040` (Dumper-7's decorative `GNames` value
+`0x099AB188` is not the pool), while Dumper-7 reports the `GWorld` anchor slot
+at RVA `0x09C42738`. They are resolved from their RVAs first and only trusted
+after full validation; bounded signature and data-section scans are the
+fallbacks, with retry backoff and a bounded rescan policy.
 
 The `ProcessEvent` identity was re-measured on the same build by scanning the
 installed image: the exact 31-byte semantic prologue occurs exactly once in

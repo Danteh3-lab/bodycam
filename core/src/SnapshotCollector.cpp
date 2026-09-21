@@ -16,6 +16,35 @@ constexpr size_t kMaxClassKinds = 256;
 constexpr double kMaxBoneLinkCm = 60.0;
 constexpr double kMaxCoordinateCm = 1.0e7;
 
+bool PositionLooksSane(const FVector& position) {
+	return position.finite() &&
+	       std::fabs(position.x) <= kMaxCoordinateCm &&
+	       std::fabs(position.y) <= kMaxCoordinateCm &&
+	       std::fabs(position.z) <= kMaxCoordinateCm;
+}
+
+bool ReadRootPosition(const ReadOnlyMemory& memory, uintptr_t root, FVector& out) {
+	// AActor's root component has no attach parent, so its reflected
+	// RelativeLocation is the actor's world position. Prefer this SDK-backed
+	// member over the non-reflected ComponentToWorld cache, whose internal
+	// placement can move between engine builds.
+	FVector position;
+	if (memory.readRaw<FVector>(root + Offsets::RelativeLocation, position) &&
+	    PositionLooksSane(position)) {
+		out = position;
+		return true;
+	}
+
+	// Compatibility fallback for unusual roots whose relative transform is
+	// unreadable. This field remains guarded and range-validated.
+	if (memory.readRaw<FVector>(root + Offsets::C2WTranslation, position) &&
+	    PositionLooksSane(position)) {
+		out = position;
+		return true;
+	}
+	return false;
+}
+
 void CopyNarrowString(const char* source, char* out, size_t outSize) {
 	if (out == nullptr || outSize == 0) return;
 	size_t i = 0;
@@ -377,11 +406,7 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 		uintptr_t root = 0;
 		if (memory_.readPointer(pawn + Offsets::RootComponent, root)) {
 			FVector rootPosition;
-			if (memory_.readRaw<FVector>(root + Offsets::C2WTranslation, rootPosition) &&
-			    rootPosition.finite() &&
-			    std::fabs(rootPosition.x) <= kMaxCoordinateCm &&
-			    std::fabs(rootPosition.y) <= kMaxCoordinateCm &&
-			    std::fabs(rootPosition.z) <= kMaxCoordinateCm) {
+			if (ReadRootPosition(memory_, root, rootPosition)) {
 				player.hasRoot = true;
 				player.root = rootPosition;
 			}
@@ -422,7 +447,7 @@ GameSnapshotPtr SnapshotCollector::Capture(const WorldContext& world, ResolveSta
 			}
 		}
 
-		++diagnostics_.entities.drawn;
+		++diagnostics_.entities.captured;
 		snapshot->players.push_back(std::move(player));
 	}
 

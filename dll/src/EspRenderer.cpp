@@ -134,7 +134,11 @@ void EspRenderer::DrawSkeleton(const mythos::PlayerSnapshot& player, const Proje
 }
 
 void EspRenderer::Draw(const mythos::GameSnapshot& snapshot, const mythos::OverlayConfig& config,
-                       float screenWidth, float screenHeight, mythos::BoneCounters& boneCounters) {
+                       float screenWidth, float screenHeight, mythos::BoneCounters& boneCounters,
+                       mythos::EntityCounters& entityCounters) {
+	entityCounters.drawn = 0;
+	entityCounters.noProjection = 0;
+	entityCounters.offScreen = 0;
 	if (!snapshot.valid || screenWidth <= 0.0f || screenHeight <= 0.0f) return;
 
 	textScale_ = config.visuals.textScale;
@@ -208,12 +212,17 @@ void EspRenderer::Draw(const mythos::GameSnapshot& snapshot, const mythos::Overl
 			}
 		}
 
-		if (!haveBox) continue;
+		if (!haveBox) {
+			++entityCounters.noProjection;
+			continue;
+		}
 
 		mythos::ScaleBox(box, static_cast<double>(features.boxScale));
 		if (box.right < 0.0 || box.bottom < 0.0 || box.left > screenWidth || box.top > screenHeight) {
+			++entityCounters.offScreen;
 			continue;
 		}
+		++entityCounters.drawn;
 
 		const float centerX = static_cast<float>(box.centerX());
 		const float top = static_cast<float>(box.top);

@@ -68,7 +68,7 @@ MYTHOS_TEST(CaptureFiltersEveryCategory) {
 	CHECK_EQ(snapshot->counters.drones, 1);
 	CHECK_EQ(snapshot->counters.droneFiltered, 1);
 	CHECK_EQ(snapshot->counters.tooFar, 1);
-	CHECK_EQ(snapshot->counters.drawn, 1);
+	CHECK_EQ(snapshot->counters.captured, 1);
 	CHECK_EQ(snapshot->counters.rejected(), 5);
 }
 
@@ -124,7 +124,7 @@ MYTHOS_TEST(CaptureRetainsAimCandidatesBeyondEspFilters) {
 	CHECK_EQ(snapshot->counters.dead, 0);
 	CHECK_EQ(snapshot->counters.droneFiltered, 0);
 	CHECK_EQ(snapshot->counters.tooFar, 0);
-	CHECK_EQ(snapshot->counters.drawn, 5);
+	CHECK_EQ(snapshot->counters.captured, 5);
 	CHECK(std::any_of(snapshot->players.begin(), snapshot->players.end(),
 	                  [](const mythos::PlayerSnapshot& player) {
 		                  return player.hasPose && player.headBone >= 0;
@@ -152,6 +152,38 @@ MYTHOS_TEST(CaptureHealthAndDistance) {
 	CHECK(player.hasTeam);
 	CHECK_EQ(player.teamId, 1);
 	CHECK(!player.sameTeam);
+}
+
+MYTHOS_TEST(CapturePrefersSdkRootRelativeLocation) {
+	CollectorContext context;
+	context.fixture.AddPlayer(1, 100.0f, 100.0f, "BP_Character_C",
+	                          mythos::FVector{ 1200.0, 0.0, 100.0 }, false, "Enemy");
+
+	CHECK(context.resolver.Resolve());
+	CHECK(context.names.Attach(context.fixture.names.address()));
+
+	uintptr_t pawn = 0;
+	CHECK(context.fixture.memory.readPointer(
+		context.fixture.rosterEntries().back() + Offsets::PSPawn, pawn));
+	uintptr_t root = 0;
+	CHECK(context.fixture.memory.readPointer(pawn + Offsets::RootComponent, root));
+	// A stale internal ComponentToWorld cache must not override the reflected
+	// root location used for ESP projection.
+	mythostest::WriteTransform(context.fixture.memory, root + Offsets::ComponentToWorld,
+	                         mythos::FVector{ 900000.0, 0.0, 0.0 });
+
+	mythos::CaptureSettings settings = DefaultSettings();
+	settings.boxFromBones = false;
+	settings.skeleton = false;
+	settings.headDot = false;
+	const mythos::GameSnapshotPtr snapshot =
+		context.collector.Capture(context.resolver.context(), mythos::ResolveStage::Ok,
+		                          settings, 1, 0);
+
+	CHECK_EQ(snapshot->players.size(), static_cast<size_t>(1));
+	CHECK(snapshot->players[0].hasRoot);
+	CHECK(std::abs(snapshot->players[0].root.x - 1200.0) < 1e-6);
+	CHECK(snapshot->players[0].distanceMeters < 20.0);
 }
 
 MYTHOS_TEST(CapturePoseAndSkeleton) {

@@ -313,10 +313,16 @@ void Runtime::MainLoop() {
 		viewportHeight_ = height;
 
 		const mythos::OverlayConfig config = settings_.Snapshot();
+		renderBones_.reset();
+		frame.collection.entities.drawn = 0;
+		frame.collection.entities.noProjection = 0;
+		frame.collection.entities.offScreen = 0;
 		if (config.espEnabled && frame.snapshot != nullptr && frame.snapshot->valid &&
 		    frame.diagnostics.state == mythos::RuntimeState::Ready) {
-			esp_.Draw(*frame.snapshot, config, width, height, renderBones_);
+			esp_.Draw(*frame.snapshot, config, width, height, renderBones_,
+			          frame.collection.entities);
 		}
+		frame.collection.bones.skeletonsDrawn = renderBones_.skeletonsDrawn;
 		esp_.DrawAimOverlay(config, frame.aim, width, height);
 
 		if (overlay_->MenuVisible()) {

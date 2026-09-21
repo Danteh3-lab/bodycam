@@ -12,6 +12,7 @@ namespace mythos {
 // the roster offers is accounted for exactly once.
 struct EntityCounters {
 	int roster = 0;
+	int captured = 0;
 	int drawn = 0;
 	int noPawn = 0;
 	int self = 0;
@@ -22,6 +23,7 @@ struct EntityCounters {
 	int tooFar = 0;
 	int drones = 0;
 	int droneFiltered = 0;
+	int noProjection = 0;
 	int offScreen = 0;
 	int occluded = 0;
 
