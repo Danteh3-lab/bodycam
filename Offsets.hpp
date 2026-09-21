@@ -2,7 +2,7 @@
 // Offsets.hpp — THE single offset source for MYTHOS.
 //
 // Target : Bodycam-Win64-Shipping.exe (x64, Unreal Engine 5, LWC doubles)
-// Profile: Steam app 2406770, Steam build 25228199
+// Profile: Steam app 2406770, Steam build 25368976 (UE 5.5.4)
 // Status : values marked [USED] are verified against the target build.
 //          values marked [DUMP] come from an SDK dump and are validated at
 //          runtime before their pointer chain is trusted.
@@ -76,10 +76,10 @@ namespace Offsets {
 		return false;
 	}
 
-	inline constexpr Profile kProfileSteam25228199{
-		"Bodycam Steam build 25228199",
+	inline constexpr Profile kProfileSteam25368976{
+		"Bodycam Steam build 25368976 (UE 5.5.4)",
 		2406770u,
-		25228199ull,
+		25368976ull,
 		"Bodycam-Win64-Shipping.exe",
 		"Bodycam-Win64-Shipping.exe",
 		"", // Steam depot builds do not ship a version resource.
@@ -87,14 +87,14 @@ namespace Offsets {
 		// Bodycam-Win64-Shipping.exe; SizeOfImage also sanity-checks that both
 		// global RVAs live inside the image).
 		ImageIdentity{
-			0x0A6FE000u, // SizeOfImage
-			0xCF9AA4C2u, // TimeDateStamp
-			0x0A2C6CC0u, // CheckSum
+			0x0A720000u, // SizeOfImage
+			0x8E1C799Au, // TimeDateStamp
+			0x0A2E9763u, // CheckSum
 			true,
 		},
 	};
 
-	inline constexpr Profile kActiveProfile = kProfileSteam25228199;
+	inline constexpr Profile kActiveProfile = kProfileSteam25368976;
 
 	inline constexpr const char* kTargetProcess = kActiveProfile.targetProcess;
 	inline constexpr const char* kGameModule    = kActiveProfile.gameModule;
@@ -104,15 +104,11 @@ namespace Offsets {
 	// GNames and GWorld are tried first and only trusted after validation.
 	// ------------------------------------------------------------------------
 	namespace Globals {
-		// Both RVAs were re-measured on Steam build 25228199 (2026-09-16):
-		//   GNames: signature scan resolved the pool at RVA 0x099C3AC0
-		//   GWorld: the stable data-section anchor slot sits at RVA 0x09C231B8;
-		//           another world-like slot at 0x09C20910 was observed to go
-		//           stale, which is exactly the case the scan fallback covers.
-		// The scanner fallbacks remain active, so a stale hint only costs one
-		// validated read attempt before the bounded scan takes over.
-		constexpr uintptr_t GNames           = 0x099C3AC0; // [USED] FNamePool
-		constexpr uintptr_t GWorld           = 0x09C231B8; // [USED] UWorld* slot
+		// Both RVAs were re-measured with Dumper-7 on Steam build 25368976
+		// (UE 5.5.4); the resolver still validates before trusting either.
+		constexpr uintptr_t GNames           = 0x099AB188; // [USED] FNamePool
+		constexpr uintptr_t GWorld           = 0x09C42738; // [USED] UWorld* slot
+		constexpr uintptr_t GObjects         = 0x09AC67F0; // measured, not consumed
 		constexpr int32_t   ElementsPerChunk = 0x10000;    // [DUMP] GObjects chunk size
 	}
 
@@ -173,8 +169,12 @@ namespace Offsets {
 		constexpr uintptr_t PropertyFlags   = 0x38;
 		constexpr uintptr_t Offset_Internal = 0x44;
 		// FBoolProperty stores its byte offset and bit mask inline.
-		constexpr uintptr_t BoolByteOffset  = 0x49;
-		constexpr uintptr_t BoolFieldMask   = 0x4B;
+		// FBoolProperty inline fields. Dumper-7 reports the bool-specific base
+		// at 0x70 on this build with FieldSize=0x70, ByteOffset=0x71,
+		// ByteMask=0x72, FieldMask=0x73 (see its CppGenerator offsets), so the
+		// mask read targets FieldMask, not ByteMask.
+		constexpr uintptr_t BoolByteOffset  = 0x71;
+		constexpr uintptr_t BoolFieldMask   = 0x73;
 	}
 
 	namespace InSDK {
@@ -351,7 +351,9 @@ namespace Offsets {
 		constexpr size_t AddInputTailArg2   = 15;
 
 		// UObject::ProcessEvent prologue, 31 bytes, measured on Steam build
-		// 25228199. The pattern embeds `test dword ptr [rdx+0xB0], 0x400`:
+		// 25368976 (UE 5.5.4) by scanning the installed image: it occurs
+		// exactly once in .text, at RVA 0x034E4A60. It embeds
+		// `test dword ptr [rdx+0xB0], 0x400`:
 		// rdx is the UFunction*, 0xB0 is UFunction::FunctionFlags and 0x400 is
 		// the native-function flag. Matching it is semantically specific, so a
 		// drifted or unrelated executable address is rejected.
@@ -427,14 +429,18 @@ namespace Offsets {
 
 	// Engine input functions — verified at runtime by prologue/tail signature,
 	// with a bounded executable-section scan as the patch-surviving fallback.
+	// Re-measured on Steam build 25368976 by scanning the installed image for
+	// the AddInput tail (all three shifted by +0x1C30; field offsets unchanged).
+	// Unused here: AddRollInput sits at 0x3CB9E80 on this build.
 	namespace EngineCalls {
-		constexpr uintptr_t AddPitchInput   = 0x3CB83C0;
-		constexpr uintptr_t AddYawInput     = 0x3CB85D0;
-		// [USED] Measured on Steam build 25228199: module base + this RVA and
-		// the controller vtable slot [ProcessEventIdx] both resolve to the same
-		// function. VisCheck requires the equality AND the prologue signature
-		// below before it will invoke anything.
-		constexpr uintptr_t ProcessEvent    = 0x034E3320;
+		constexpr uintptr_t AddPitchInput   = 0x3CB9DF0;
+		constexpr uintptr_t AddYawInput     = 0x3CBA000;
+		// [USED] Measured on Steam build 25368976: the exact 31-byte semantic
+		// prologue below occurs exactly once in .text, at this RVA. Module base
+		// + this RVA and the controller vtable slot [ProcessEventIdx] must
+		// resolve to the same function. VisCheck requires the equality AND the
+		// prologue signature before it will invoke anything.
+		constexpr uintptr_t ProcessEvent    = 0x034E4A60;
 		constexpr uint8_t   ProcessEventIdx = 0x4F; // UObject::ProcessEvent slot
 	}
 

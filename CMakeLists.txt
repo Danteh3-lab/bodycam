@@ -80,6 +80,7 @@ target_link_libraries(mythos_imgui PUBLIC d3d11 dxgi dwmapi user32)
 add_subdirectory(core)
 add_subdirectory(dll)
 add_subdirectory(loader)
+add_subdirectory(tools/analysis-injector)
 
 if(MYTHOS_BUILD_TESTS)
   enable_testing()

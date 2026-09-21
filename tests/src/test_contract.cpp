@@ -136,6 +136,23 @@ std::string ReadFile(const std::filesystem::path& path) {
 	                   std::istreambuf_iterator<char>());
 }
 
+// True when the stripped text declares `name = <hex>;` with exactly that
+// literal on the right-hand side. Used for pinned offset values where a bare
+// token search could match an unrelated constant (e.g. 0x73 also appears as
+// the AddInput tail offset).
+bool DeclaresHex(const std::string& text, const std::string& name, const std::string& hex) {
+	const size_t namePos = text.find(name);
+	if (namePos == std::string::npos) return false;
+	if (namePos != 0 && IsIdentifierChar(text[namePos - 1])) return false;
+	const size_t end = namePos + name.size();
+	if (end < text.size() && IsIdentifierChar(text[end])) return false;
+	const size_t equals = text.find('=', end);
+	if (equals == std::string::npos || equals > end + 32) return false;
+	const size_t semicolon = text.find(';', equals);
+	if (semicolon == std::string::npos) return false;
+	return text.substr(equals + 1, semicolon - equals - 1).find(hex) != std::string::npos;
+}
+
 // Never allowed anywhere in core/ or dll/, at any time: patching, injection,
 // hooks and unbounded module loads. Only the loader may inject (asserted
 // separately), and engine interaction is quarantined to the modules below.
@@ -277,9 +294,21 @@ MYTHOS_TEST(EngineInteractionIsQuarantinedToDedicatedModules) {
 	// ProcessEvent identity is the measured one, cross-checked RVA <-> vtable,
 	// with no speculative slots and no "any executable address" fallback.
 	const std::string offsets = StripCommentsAndLiterals(ReadFile(root / "Offsets.hpp"));
-	CHECK(ContainsToken(offsets, "0x034E3320"));
+	CHECK(ContainsToken(offsets, "0x034E4A60"));
 	CHECK(ContainsToken(offsets, "0x4F"));
 	CHECK(ContainsToken(offsets, "NativeFunctionPrologue"));
+	// Complete pinned build-25368976 identity: PE fields, globals, input RVAs,
+	// and the FBoolProperty byte/mask offsets.
+	CHECK(ContainsToken(offsets, "0x0A720000u"));
+	CHECK(ContainsToken(offsets, "0x8E1C799Au"));
+	CHECK(ContainsToken(offsets, "0x0A2E9763u"));
+	CHECK(ContainsToken(offsets, "0x099AB188"));
+	CHECK(ContainsToken(offsets, "0x09C42738"));
+	CHECK(DeclaresHex(offsets, "AddPitchInput", "0x3CB9DF0"));
+	CHECK(DeclaresHex(offsets, "AddYawInput", "0x3CBA000"));
+	CHECK(DeclaresHex(offsets, "ProcessEvent", "0x034E4A60"));
+	CHECK(DeclaresHex(offsets, "BoolByteOffset", "0x71"));
+	CHECK(DeclaresHex(offsets, "BoolFieldMask", "0x73"));
 	CHECK(ContainsToken(vischeck, "ProcessEventIdx"));
 	CHECK(ContainsToken(vischeck, "rvaCandidate"));
 	CHECK(ContainsToken(vischeck, "slotCandidate"));
@@ -395,6 +424,27 @@ MYTHOS_TEST(LoaderInjectionIsIsolatedToTheLoader) {
 	CHECK(text.find("MYTHOS.Loader.exe") != std::string::npos);
 	CHECK(text.find("NOVA.dll") != std::string::npos);
 	CHECK(text.find("ModuleAlreadyLoaded(pid, kLegacyDllName)") != std::string::npos);
+	// No build-gate bypass may exist in the shipping loader: a rename would
+	// defeat any filename-based refusal, so the flag itself must be absent.
+	CHECK(text.find("allow-unknown-build") == std::string::npos);
+	CHECK(!ContainsToken(text, "allowUnknownBuild"));
+	CHECK(!ContainsToken(text, "SKIPPED"));
+}
+
+MYTHOS_TEST(AnalysisInjectorIsSeparateAndLabeled) {
+	// Dumping/RE injection lives in its own analysis-only tool, never in the
+	// shipping loader. It performs no build validation by design.
+	const std::filesystem::path analysisSource =
+		std::filesystem::path(MYTHOS_SOURCE_DIR) / "tools" / "analysis-injector" /
+		"src" / "main.cpp";
+	const std::string text = ReadFile(analysisSource);
+	CHECK(!text.empty());
+	CHECK(ContainsToken(text, "LoadLibraryW"));
+	CHECK(ContainsToken(text, "CreateRemoteThread"));
+	CHECK(text.find("analysis") != std::string::npos);
+	CHECK(text.find("MYTHOS.Analysis") != std::string::npos);
+	CHECK(!ContainsToken(text, "allowUnknownBuild"));
+	CHECK(text.find("allow-unknown-build") == std::string::npos);
 }
 
 MYTHOS_TEST(BrandConsistencyHasOnlyExplicitLegacyAllowlist) {

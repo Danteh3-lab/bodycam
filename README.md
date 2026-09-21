@@ -1,7 +1,7 @@
 # MYTHOS — Bodycam Overlay
 
 MYTHOS is an Unreal Engine 5 overlay for **Bodycam** (Steam app `2406770`,
-build `25228199`), targeting offline/private play on Windows x64 in windowed
+build `25368976`), targeting offline/private play on Windows x64 in windowed
 and borderless windowed modes. It provides a read-only ESP plus optional aim
 assist and an engine line-of-sight visibility check.
 
@@ -132,6 +132,11 @@ Debug builds (`--config Debug`) and the test target are supported and verified.
    - `--pid <id>` optional, defaults to finding `Bodycam-Win64-Shipping.exe`.
    - injection is rejected when either `MYTHOS.dll` or the legacy `NOVA.dll` is
      already mapped; restart the game before trying again.
+   - the loader always enforces the pinned build gate before injection; there
+     is no bypass flag. Dumping/RE injection lives in the separate
+     analysis-only tool `tools/analysis-injector`
+     (`MYTHOS.Analysis.exe --dll <path> [--pid <id>]`), which performs no
+     build validation by design.
 3. In game: `INSERT` toggles the MYTHOS panel; `DELETE` stops MYTHOS (the overlay,
    sampling and input stop). Opening the game-thread path pins `MYTHOS.dll`, so
    it stays mapped until the game exits and the loader refuses a second
@@ -179,23 +184,28 @@ The loader's exit codes:
 ## Offsets and build gating
 
 `Offsets.hpp` is the single offset source and carries the profile metadata
-(Steam app `2406770`, build `25228199`). Both globals were re-measured against
-the installed build: `GNames` at RVA `0x099C3AC0` and the stable `GWorld` anchor
-slot at RVA `0x09C231B8`. They are resolved from their RVAs first and only
-trusted after full validation; bounded signature and data-section scans are the
-fallbacks, with retry backoff and a bounded rescan policy.
+(Steam app `2406770`, build `25368976`, UE 5.5.4). Both globals were re-measured
+against the installed build with Dumper-7: `GNames` at RVA `0x099AB188` and the
+stable `GWorld` anchor slot at RVA `0x09C42738`. They are resolved from their
+RVAs first and only trusted after full validation; bounded signature and
+data-section scans are the fallbacks, with retry backoff and a bounded rescan
+policy.
 
-The `ProcessEvent` identity was re-measured on the same build: RVA
-`0x034E3320` and the controller's `UObject::ProcessEvent` vtable slot `0x4F`
-both resolve to the same function. VisCheck requires that equality **and** an
-exact match of the 31-byte current-build prologue (it embeds
+The `ProcessEvent` identity was re-measured on the same build by scanning the
+installed image: the exact 31-byte semantic prologue occurs exactly once in
+`.text`, at RVA `0x034E4A60`, and the controller's `UObject::ProcessEvent`
+vtable slot `0x4F` must resolve to that same function. VisCheck requires that
+equality **and** the prologue match (it embeds
 `test dword ptr [rdx+0xB0], 0x400`, i.e. `UFunction::FunctionFlags`); a failed
-check disables the vischeck instead of invoking an unrelated function.
+check disables the vischeck instead of invoking an unrelated function. The
+`AddPitchInput`/`AddYawInput` RVAs (`0x3CB9DF0`/`0x3CBA000`) were re-measured
+the same way via their tail signatures; the embedded `RotationInput` field
+offsets are unchanged.
 
 Build gating is enforced on the PE identity, not just a version string:
 
 - The profile pins `SizeOfImage`, `TimeDateStamp` and `CheckSum`
-  (`0x0A6FE000` / `0xCF9AA4C2` / `0x0A2C6CC0`). The loader reads these from the
+  (`0x0A720000` / `0x8E1C799A` / `0x0A2E9763`). The loader reads these from the
   target image and **fails closed (exit 7) before injection** on any mismatch.
 - The DLL re-measures the same fields in-process; a conflict reports the
   terminal `Offsets invalid` state and ESP stays disabled.
@@ -255,7 +265,7 @@ Build gating is enforced on the PE identity, not just a version string:
 
 ## Live acceptance status
 
-Verified live against the installed Steam build `25228199`
+Verified live against the installed Steam build `25368976`
 (`Bodycam-Win64-Shipping.exe`, borderless windowed 1920x1200):
 
 - Loader validated the pinned PE identity, injected exactly once, exit 0.
@@ -281,7 +291,7 @@ death/spectating recovery, minimize/restore, and DPI/monitor moves.
 Vischeck live pass: enable **Aim → Allow engine calls (unsafe)** and
 **Players → Dim occluded** first. Expected in Diagnostics and `mythos.log`:
 `LineOfSightTo via ProcessEvent on MYTHOS worker (ProcessEvent verified at RVA
-0x034E3320...)`, `queries > 0`, `visible > 0`, `hidden > 0`, `faults = 0`. A
+0x034E4A60...)`, `queries > 0`, `visible > 0`, `hidden > 0`, `faults = 0`. A
 player moving behind solid cover should turn grey; with **Visible only** they
 should disappear. If `faults` becomes nonzero, disable engine calls
 immediately. If resolution succeeds but every result stays visible, the next

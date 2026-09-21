@@ -101,7 +101,7 @@ MYTHOS_TEST(PinnedImageIdentityConflictMatrix) {
 	const Offsets::Profile& profile = Offsets::kActiveProfile;
 	CHECK(Offsets::HasPinnedImageIdentity(profile));
 	CHECK_EQ(profile.steamAppId, 2406770u);
-	CHECK_EQ(profile.steamBuild, 25228199ull);
+	CHECK_EQ(profile.steamBuild, 25368976ull);
 
 	// The pinned image must be large enough to contain both global RVAs.
 	CHECK(Offsets::Globals::GWorld < profile.knownImage.sizeOfImage);

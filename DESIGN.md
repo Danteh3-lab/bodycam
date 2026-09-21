@@ -204,7 +204,7 @@ the static contract test rejects engine interaction tokens anywhere else.
   input scale is measured at runtime (0.05 probe) so a patch cannot silently
   invert the direction. Roll is never written.
 * Vischeck accepts only a cross-checked `ProcessEvent`: the measured RVA
-  (`0x034E3320` on Steam build 25228199) and the controller's vtable slot
+  (`0x034E4A60` on Steam build 25368976) and the controller's vtable slot
   `0x4F` must resolve to the same function, and that function must match the
   exact 31-byte current-build prologue. A mismatch disables the check, and the
   check itself is off until **Allow engine calls (unsafe)** is enabled. To
